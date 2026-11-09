@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { openStore } from '../lib/store.js'
-import { DEFAULT_K, DEFAULT_SNIPPET_CHARS, DEFAULT_STATUS, SEARCH_STATUSES, searchMemory } from '../lib/search.js'
+import { DEFAULT_K, DEFAULT_SNIPPET_CHARS, DEFAULT_STATUS, SEARCH_STATUSES, searchMemory, toMatchQuery } from '../lib/search.js'
 
 /** Открыть хранилище на временном каталоге; закрывается после теста. */
 function tempStore(t, namespace = 'demo') {
@@ -213,6 +213,41 @@ test('невалидные k/status/kinds/namespace — понятная оши�
   assert.throws(() => searchMemory(store, { query: 'память', kinds: 'fact' }), /kinds должен быть массивом/)
   assert.throws(() => searchMemory(store, { query: 'память', namespace: '  ' }), /namespace/)
   assert.throws(() => searchMemory(store, 'память'), /memory\.search ждёт объект/)
+})
+
+test('toMatchQuery оборачивает слова в кавычки, пунктуация — разделитель', () => {
+  assert.equal(toMatchQuery('dsh-memory'), '"dsh" "memory"')
+  assert.equal(toMatchQuery('Схема: entries'), '"Схема" "entries"')
+  assert.equal(toMatchQuery('https://example.com/docs'), '"https" "example" "com" "docs"')
+  assert.equal(toMatchQuery('"незакрытая'), '"незакрытая"')
+  assert.equal(toMatchQuery('ИЛИ ('), '"ИЛИ"')
+  assert.equal(toMatchQuery('---'), '')
+  assert.equal(toMatchQuery('   '), '')
+})
+
+test('естественные запросы с дефисом и двоеточием не бросают и находят записи', (t) => {
+  const store = tempStore(t)
+  const { id } = store.insertEntry({
+    kind: 'doc',
+    title: 'dsh-memory',
+    text: 'Плагин dsh-memory: Схема: entries, sources, metrics. task-oriented документация. https://example.com/docs',
+    status: 'verified',
+    confidence: 1,
+  })
+
+  for (const query of ['dsh-memory', 'task-oriented', 'Схема: entries', 'https://example.com/docs']) {
+    const results = searchMemory(store, { query })
+    assert.ok(results.some((result) => result.id === id), `запрос "${query}" не нашёл запись`)
+  }
+
+  // Такие запросы не обязаны ничего находить, но и ронять ход не должны.
+  for (const query of ['bogus:foo', 'title-Память', 'a-b', '---', '"незакрытая', 'ИЛИ (']) {
+    assert.doesNotThrow(() => searchMemory(store, { query }), `запрос "${query}" бросил исключение`)
+  }
+  assert.deepEqual(searchMemory(store, { query: 'bogus:foo' }), [])
+
+  // Прямой вызов хранилища тоже не должен падать на column-filter синтаксисе.
+  assert.deepEqual(store.searchEntries('dsh-memory'), [])
 })
 
 test('поломка FTS не маскируется под «ничего не найдено»', (t) => {
