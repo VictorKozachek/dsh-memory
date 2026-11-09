@@ -95,7 +95,9 @@ task/<id> main`), чтобы ветка начиналась от актуаль
 
 `dsh-kanban` смонтирован в профиле DSH Web, а этот проект перечислен в его
 `boards` (`~/.dsh/cordis.patch.yml`). Карточки — `.kanban/tasks/<id>.md`,
-формат — `.kanban/tasks/README.md`. Служебные файлы доски
+формат — `.kanban/tasks/README.md`. В этой раскладке карточка авторитетна в
+основном чекауте, поэтому `bin/task-commit.sh` адаптирован: он читает её из
+`main` первым (иначе унаследованная копия в worktree даёт старый статус). Служебные файлы доски
 (`.kanban/.watcher-*.json`, `.workers.json`, `worktrees/`) закрыты
 `.gitignore`; `board.json`, `specs/` и `tasks/` — в git.
 
