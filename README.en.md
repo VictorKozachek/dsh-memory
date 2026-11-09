@@ -44,6 +44,27 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
 - vectors are not part of the main package: an optional `dsh-memory-embeddings` package
   (later) owns the provider or local model.
 
+### First query
+
+```bash
+# 1. Index the workspace markdown documentation (the package CLI).
+#    --json prints the report: files / indexed / chunks / skipped / secrets.
+dsh-memory index --workspace . --json
+
+# 2. Search the memory. Inside a DSH profile the memory.search tool does this;
+#    in a package checkout the same call can be verified directly:
+node --input-type=module -e "
+  import { openStore } from './lib/store.js'
+  import { searchMemory } from './lib/search.js'
+  const store = openStore({ dbPath: '~/.dsh/memory', namespace: 'dsh-memory' })
+  console.log(searchMemory(store, { query: 'cascade L0 L1 L2 L3', k: 3 }))
+"
+```
+
+A `memory.search` request is `{ "query": "cascade L0 L1 L2 L3", "k": 3 }`; the
+answer is a list of snippets `[{ id, title, snippet, source_path, source_ref,
+status, confidence, score }]` — the full document text never leaves the store.
+
 ## How it works
 
 ```text
@@ -97,8 +118,9 @@ then served to every future session *cheaper than it would have cost to verify*.
 | `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
 | `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
 
-`memory.search` returns `verified` plus `draft` entries by default, with drafts
-marked, and truncates snippets to 300 characters — a pointer, never the document.
+`memory.search` returns `verified` entries by default; `status: "all"` adds
+`draft` entries marked by status, and snippets are truncated to 300 characters —
+a pointer, never the document.
 `memory.write` dedupes by hash; a source-less record is only a `draft` with
 `confidence < 0.5`.
 
@@ -208,13 +230,14 @@ returns snippets only, and on error the plugin stays silent, letting the turn co
 
 ## Status and repository layout
 
-`main` already contains the plugin skeleton (package, bundle row, `apply`), the
-SQLite store (schema, migrations, namespace, FTS5) and the configuration with
-environment variables; `npm test` runs 32 tests. In progress: the indexer and
-the `index` CLI, the `memory.*` tools, context injection, verification and the
-benchmark. The board lives in `.kanban/`; `AGENTS.md` is the agent protocol,
-`PLAN.md` the project plan, `bin/` the board scripts. The detailed internal
-specification is not published.
+Phase 0 is complete: the plugin skeleton (package, bundle row, `apply`), the
+SQLite store (schema, migrations, namespace, FTS5), the document indexer with
+the `index` CLI, the `memory.search` / `memory.write` / `memory.verify` /
+`memory.invalidate` / `memory.stats` tools, TTL and `metrics` events; `npm test`
+runs 99 tests, including the phase 0 e2e "`index` → `search` finds three known
+definitions" over the `test/fixtures/phase0` fixtures. Next: context injection
+(010), `token-meter` metrics (011), the MVP benchmark (015). The detailed
+internal specification is not published.
 
 ## License
 
