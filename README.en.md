@@ -4,7 +4,9 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: design stage — no code yet.** Planned work only, nothing built.
+> **Status: early development.** The plugin skeleton, the SQLite store and the
+> configuration are already on `main`; `memory.*`, the indexer and context
+> injection are in progress on the task board ([PLAN.md](PLAN.md)).
 
 ## Problem
 
@@ -131,8 +133,8 @@ cost, routing errors, conflicting answers, prompt and role versioning.
 
 ## Configuration
 
-Planned configuration for `~/.dsh/cordis.patch.yml`, not yet read by any code.
-Environment variables: `DSH_MEMORY_DB`, `DSH_MEMORY_INJECT`, `DSH_MEMORY_TOP_K`.
+The `dsh-memory` block in `~/.dsh/cordis.patch.yml`; defaults and environment
+parsing live in `lib/config.js`, and the row config and `DSH_MEMORY_*` override them.
 
 ```yaml
 dsh-memory:
@@ -187,14 +189,13 @@ only, and on error the plugin stays silent, letting the turn continue.
 
 ## Status and repository layout
 
-No plugin code yet: the repository holds the documentation and the task board
-that drives the MVP work. The board lives in `.kanban/`; `AGENTS.md` is the
-agent protocol, `PLAN.md` the project plan, `bin/` the board scripts. Present:
-`README.md` (Russian), `README.en.md` (this file), `AGENTS.md`, `PLAN.md`,
-`bin/`, `.kanban/`, `LICENSE` and `.gitignore`. Planned and not yet present:
-the plugin package, the `memory.*` implementations, the SQLite schema and
-migrations, the indexing CLI, tests, benchmarks, sample configuration. The
-detailed internal specification is not published.
+`main` already contains the plugin skeleton (package, bundle row, `apply`), the
+SQLite store (schema, migrations, namespace, FTS5) and the configuration with
+environment variables; `npm test` runs 51 tests. In progress: the indexer and
+the `index` CLI, the `memory.*` tools, context injection, verification and the
+benchmark. The board lives in `.kanban/`; `AGENTS.md` is the agent protocol,
+`PLAN.md` the project plan, `bin/` the board scripts. The detailed internal
+specification is not published.
 
 ## License
 
