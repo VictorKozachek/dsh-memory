@@ -191,7 +191,7 @@ only, and on error the plugin stays silent, letting the turn continue.
 
 `main` already contains the plugin skeleton (package, bundle row, `apply`), the
 SQLite store (schema, migrations, namespace, FTS5) and the configuration with
-environment variables; `npm test` runs 51 tests. In progress: the indexer and
+environment variables; `npm test` runs 32 tests. In progress: the indexer and
 the `index` CLI, the `memory.*` tools, context injection, verification and the
 benchmark. The board lives in `.kanban/`; `AGENTS.md` is the agent protocol,
 `PLAN.md` the project plan, `bin/` the board scripts. The detailed internal
