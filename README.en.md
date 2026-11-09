@@ -4,9 +4,12 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: early development.** The plugin skeleton, the SQLite store and the
-> configuration are already on `main`; `memory.*`, the indexer and context
-> injection are in progress on the task board ([PLAN.md](PLAN.md)).
+> **Status: phase 0 complete.** The plugin skeleton, the SQLite store, the document
+> indexer with the `index` CLI and the `memory.*` modules
+> (`search`/`write`/`verify`/`invalidate`/`stats`) with TTL and metrics are
+> working; the "`index` → `search` finds three definitions" e2e is green.
+> Context injection, the L2/L3 cascade and the benchmark come next on the board
+> ([PLAN.md](PLAN.md)).
 
 ## Problem
 
@@ -37,10 +40,11 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
 ```
 
 - nothing to configure: memory is local (SQLite FTS5), no network, no API keys;
-- on the first turn the workspace markdown files are indexed in the background under a limit
-  (`DSH_MEMORY_AUTOINDEX=off` disables it);
-- `dsh-memory doctor` shows the DB path, namespace, files/chunks and skipped secrets;
-  `dsh-memory index --dry-run` shows what would be stored; `dsh-memory index` indexes manually;
+- `dsh-memory index` indexes the markdown documentation manually (incrementally,
+  filtering secrets out);
+- planned later (outside phase 0): `dsh-memory doctor` (DB path, namespace,
+  files/chunks, skipped secrets), `dsh-memory index --dry-run`, and background
+  auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
 - vectors are not part of the main package: an optional `dsh-memory-embeddings` package
   (later) owns the provider or local model.
 
@@ -49,7 +53,8 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
 ```bash
 # 1. Index the workspace markdown documentation (the package CLI).
 #    --json prints the report: files / indexed / chunks / skipped / secrets.
-dsh-memory index --workspace . --json
+#    --namespace names the memory; without it the workspace directory name is used.
+dsh-memory index --workspace . --namespace dsh-memory --json
 
 # 2. Search the memory. Inside a DSH profile the memory.search tool does this;
 #    in a package checkout the same call can be verified directly:

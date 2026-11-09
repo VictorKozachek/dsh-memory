@@ -4,8 +4,10 @@
 
 **English version:** [README.en.md](README.en.md)
 
-> **Статус: ранняя разработка.** Скелет плагина, хранилище SQLite и конфигурация уже в `main`;
-> `memory.*`, индексатор и инъекция — в работе по доске задач ([PLAN.md](PLAN.md)).
+> **Статус: фаза 0 закрыта.** Работают скелет плагина, хранилище SQLite, индексатор
+> с CLI `index` и модули `memory.*` (`search`/`write`/`verify`/`invalidate`/`stats`)
+> с TTL и метриками; e2e «`index` → `search` находит три определения» зелёный.
+> Инъекция top-k, каскад L2/L3 и бенчмарк — дальше по доске ([PLAN.md](PLAN.md)).
 
 ## Проблема
 
@@ -28,9 +30,10 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
 ```
 
 - настраивать ничего не нужно: память локальная (SQLite FTS5), сеть не используется, ключи не требуются;
-- при первом ходе markdown-документы воркспейса индексируются фоном с лимитом (`DSH_MEMORY_AUTOINDEX=off` отключает);
-- `dsh-memory doctor` — путь БД, namespace, файлы/чанки, отсеянные секреты; `dsh-memory index --dry-run` — что попадёт
-  в память; `dsh-memory index` — индексация вручную;
+- `dsh-memory index` — индексация markdown-документации вручную (инкрементально, с отсечением секретов);
+- планируется позже (вне фазы 0): `dsh-memory doctor` (путь БД, namespace, файлы/чанки,
+  отсеянные секреты), `dsh-memory index --dry-run` и фоновая автоиндексация при первом
+  ходе с отключением через `DSH_MEMORY_AUTOINDEX=off`;
 - векторы в основной пакет не входят: при необходимости ставится отдельный `dsh-memory-embeddings` (позже),
   и только он работает с провайдером или локальной моделью.
 
@@ -39,7 +42,8 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
 ```bash
 # 1. Индексация markdown-документации воркспейса (CLI из пакета).
 #    --json печатает отчёт: files / indexed / chunks / skipped / secrets.
-dsh-memory index --workspace . --json
+#    --namespace задаёт имя памяти; без него берётся имя каталога воркспейса.
+dsh-memory index --workspace . --namespace dsh-memory --json
 
 # 2. Поиск по памяти. В профиле DSH это делает инструмент memory.search;
 #    в checkout пакета тот же вызов проверяется напрямую:
