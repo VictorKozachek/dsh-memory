@@ -9,11 +9,11 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 ## Problem
 
 An agent session starts from scratch: the agent re-reads the same docs and
-source files, asks and answers the same questions at full price, and the
-knowledge evaporates when the session ends. The answer to "why is this module
-designed this way?" sits in a past session or a decision record, but reaching it
-costs more than re-deriving it. dsh-memory makes the expensive path the exception:
-cheap lookups first, the main model last, and what is learned is kept verified.
+source files, asks and answers questions at full price, and knowledge
+evaporates when the session ends. The answer to "why is this designed this
+way?" sits in a past session or a decision record, but reaching it costs more
+than re-deriving it. dsh-memory makes the expensive path the exception: cheap
+lookups first, the main model last, and what is learned is kept once verified.
 
 ## What it does
 
@@ -97,9 +97,10 @@ added latency to first token ≤ 50 ms, never blocking.
 ## Dispatcher and specialised submodels (proposal)
 
 Beyond the MVP, the cheap L2 role can be played not by a single submodel but by
-a dispatcher with a registry of specialists: it gets the request after an L0/L1
-miss, splits it into subtopics and routes each one to a specialist. Specialists
-answer from their own knowledge plus RAG and escalate to L3 when they cannot.
+a dispatcher (manager submodel) with a registry of specialists: it gets the
+request after an L0/L1 miss, splits it into subtopics and routes each one to a
+specialist. Specialists answer from their own knowledge plus RAG and escalate
+to L3 when they cannot.
 
 ```text
   request (after L0/L1 miss) --> dispatcher (manager submodel)
@@ -122,12 +123,11 @@ answer from their own knowledge plus RAG and escalate to L3 when they cannot.
 | tester | testing of all kinds: unit, integration, end-to-end, edge cases |
 | scientist | physics, mathematics, chemistry, biology and related fields |
 
-The developer → reviewer → fixes loop is the part that matters: no specialist
-signs off on its own output, and the tester works independently of the developer.
-Roles and their models are scaled through a **role registry**: a new specialist is
-a configuration entry, not a dispatcher change. Proposal only, a phase after the
-MVP. Risks: added latency, coordination cost, routing errors, conflicting answers,
-versioning of prompts and roles.
+The developer → reviewer → fixes loop matters: no specialist signs off on its
+own output; the tester works independently of the developer. Roles scale
+through a **role registry**: a new specialist is a configuration entry, not a
+dispatcher change. Proposal only, after the MVP. Risks: latency, coordination
+cost, routing errors, conflicting answers, prompt and role versioning.
 
 ## Configuration
 
