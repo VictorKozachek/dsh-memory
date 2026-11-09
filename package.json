@@ -11,8 +11,12 @@
   },
   "files": [
     "lib",
+    "bin/dsh-memory.js",
     "cordis.patch.yml"
   ],
+  "bin": {
+    "dsh-memory": "./bin/dsh-memory.js"
+  },
   "scripts": {
     "test": "node --test \"test/*.test.mjs\""
   },
