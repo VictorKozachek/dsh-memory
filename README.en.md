@@ -187,10 +187,13 @@ only, and on error the plugin stays silent, letting the turn continue.
 
 ## Status and repository layout
 
-Documentation only: no code, no release. The repository contains `README.md`
-(Russian), `README.en.md` (this file), `LICENSE` and `.gitignore`. Planned and
-not yet present: plugin source, the `memory.*` implementations, the SQLite schema
-and migrations, the indexing CLI, tests, benchmarks, sample configuration. The
+No plugin code yet: the repository holds the documentation and the task board
+that drives the MVP work. The board lives in `.kanban/`; `AGENTS.md` is the
+agent protocol, `PLAN.md` the project plan, `bin/` the board scripts. Present:
+`README.md` (Russian), `README.en.md` (this file), `AGENTS.md`, `PLAN.md`,
+`bin/`, `.kanban/`, `LICENSE` and `.gitignore`. Planned and not yet present:
+the plugin package, the `memory.*` implementations, the SQLite schema and
+migrations, the indexing CLI, tests, benchmarks, sample configuration. The
 detailed internal specification is not published.
 
 ## License

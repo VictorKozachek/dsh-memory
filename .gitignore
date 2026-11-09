@@ -26,7 +26,10 @@ tmp/
 *.pem
 *.key
 
-# Рабочие деревья и служебное состояние доски (если появится kanban-инфраструктура)
+# Рабочие деревья и служебное состояние доски
 worktrees/
 .kanban/.watcher-state.json
 .kanban/.watcher-pending.json
+.kanban/.watcher-roles.json
+.kanban/.workers.json
+.kanban/worktrees.json
