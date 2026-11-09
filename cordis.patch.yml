@@ -1,0 +1,17 @@
+# Патч-слой пакета dsh-memory — точка монтирования плагина в профиль.
+#
+# `dsh plugin --profile <имя> add <путь>` видит `dsh.bundle.patch` в
+# package.json, дописывает `dsh-memory` в `dsh.profile.bundles` профиля и
+# применяет этот файл отдельным слоем после dsh-base и dsh-web-app. Поэтому
+# руками править `~/.dsh/profiles/<имя>/cordis.patch.yml` не нужно: ряд ниже и
+# есть монтирование.
+#
+# Ряд — обычная Loader-энтри: cordis импортирует пакет `dsh-memory` (ESM-точка
+# входа `lib/index.js`) и вызывает `apply(ctx, config)`. Плагин не требует
+# сервисов, поэтому грузится и в профиле без инструментов.
+#
+# Конфиг (namespace, db_path, inject, search, index, embeddings, verify)
+# добавит задача 008; пока ряд монтирует плагин с настройками по умолчанию.
+- insert:
+    - id: dsh-memory
+      name: dsh-memory
