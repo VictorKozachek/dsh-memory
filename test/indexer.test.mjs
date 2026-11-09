@@ -185,6 +185,16 @@ test('упоминания паттернов в прозе не считают�
   }
 })
 
+test('ключи в inline-code, списках и fenced-блоках по-прежнему ловятся', () => {
+  // PEM опознаётся в начале строки (в том числе с отступом), но не посреди прозы.
+  assert.equal(containsSecret(`пример: \`ghp_${'a'.repeat(36)}\` в прозе`), true)
+  assert.equal(containsSecret(`- \`sk-${'a'.repeat(48)}\``), true)
+  assert.equal(containsSecret(`const k = \`ghp_${'a'.repeat(36)}\``), true)
+  assert.equal(containsSecret(`PEM-заголовок \`-----BEGIN RSA PRIVATE KEY-----\` в документации`), false)
+  assert.equal(containsSecret('  -----BEGIN RSA PRIVATE KEY-----'), true)
+  assert.equal(containsSecret('```\nconst k = `AKIA' + 'A'.repeat(16) + '`\n```'), true)
+})
+
 test('синтетические ключи по-прежнему ловятся, короткие и в прозе — нет', () => {
   // PEM-заголовки разных типов ключей.
   assert.equal(containsSecret('-----BEGIN RSA PRIVATE KEY-----\nMIIExample'), true)
@@ -205,10 +215,9 @@ test('синтетические ключи по-прежнему ловятся
   assert.equal(containsSecret(`AKIA${'A'.repeat(15)}`), false)
   assert.equal(containsSecret(`akia${'a'.repeat(16)}`), false)
 
-  // Ключ в fenced-блоке и отдельной строкой ловится; в prose inline-code — нет.
+  // Ключ в fenced-блоке и отдельной строкой ловится.
   assert.equal(containsSecret(`\`\`\`\nghp_${'a'.repeat(36)}\n\`\`\``), true)
   assert.equal(containsSecret(`\`ghp_${'a'.repeat(36)}\``), true)
-  assert.equal(containsSecret(`пример: \`ghp_${'a'.repeat(36)}\` в прозе`), false)
 })
 
 test('чанкование по ## и лимит токенов', () => {
