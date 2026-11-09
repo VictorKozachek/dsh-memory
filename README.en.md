@@ -1,0 +1,198 @@
+# dsh-memory
+
+Long-term project memory and a token cascade for DeepSeek Harness agents.
+
+**Русская версия:** [README.md](README.md)
+
+> **Status: design stage — no code yet.** Planned work only, nothing built.
+
+## Problem
+
+An agent session starts from scratch: the agent re-reads the same docs and
+source files, asks and answers the same questions at full price, and the
+knowledge evaporates when the session ends. The answer to "why is this module
+designed this way?" sits in a past session or a decision record, but reaching it
+costs more than re-deriving it. dsh-memory makes the expensive path the exception:
+cheap lookups first, the main model last, and what is learned is kept verified.
+
+## What it does
+
+By design (nothing here is implemented yet), the plugin:
+
+- **Answers from cheap sources first.** A four-level cascade: deterministic
+  lookups, local retrieval, a cheap submodel, and only then the main model.
+- **Injects memory into every turn.** At most three short entries inside a fixed
+  token budget — or nothing at all when nothing matches.
+- **Writes knowledge back.** A successful answer is distilled, given provenance,
+  stored as a draft and reused only after a PASS or human confirmation.
+- **Keeps memory honest.** Entries go stale when their source changes or
+  disappears, and stale knowledge is never returned to a model.
+
+## How it works
+
+```text
+  request
+     v
+  [L0] deterministic sources: board, cards, grep/glob    0 model tokens
+     v miss
+  [L1] RAG memory: top-k snippets, SQLite FTS5           0 model tokens
+     v miss
+  [L2] cheap submodel: ANSWER | NO_ANSWER                limited max_tokens
+     v NO_ANSWER
+  [L3] main model: from the session settings             full cost
+     v answer
+  write-back: distill + provenance --> draft
+     v PASS review/test or human confirmation
+  verified --> served by L1 on the next question
+```
+
+| Level | What it does | Cost |
+| --- | --- | --- |
+| L0 | board, cards, `grep`/`glob` — deterministic, no model involved | 0 model tokens |
+| L1 | top-k snippets from the local SQLite FTS5 index | 0 model tokens |
+| L2 | cheap submodel under `ANSWER \| NO_ANSWER`, allowed to say "I don't know" | limited `max_tokens` |
+| L3 | the main model from the session settings, only on `NO_ANSWER` | full price |
+
+**Verified knowledge only.** Write-back is gated: a distilled answer is stored as
+`draft` with provenance and becomes `verified` only after a review/test PASS or
+explicit human confirmation. Otherwise one hallucination enters the index and is
+then served to every future session *cheaper than it would have cost to verify*.
+
+## Memory (RAG)
+
+| Aspect | Design |
+| --- | --- |
+| Storage | SQLite at `~/.dsh/memory/<namespace>.db`: `sources`, `entries`, `entries_fts`, `metrics` |
+| Namespace | one per workspace; the MVP has no cross-project memory |
+| Kinds | `doc`, `decision`, `fact`, `answer`, `code-note` |
+| Statuses | `draft`, `verified`, `stale` — stale is never returned |
+| Provenance | every entry carries `source_path`, `source_ref`, author, timestamps |
+| Dedupe | `hash = sha256(kind\|title\|text)` is UNIQUE; a match raises confidence and merges sources |
+| Invalidation | source sha256 changed or file deleted → dependent entries go `stale` |
+| TTL | `decision` 180 days, `fact` 60 days, `answer` 30 days |
+
+## Tools
+
+| Tool | Purpose | Input → output |
+| --- | --- | --- |
+| `memory.search` | find relevant knowledge | `{ query, k?, kinds?, status?, namespace? }` → `[{ id, title, snippet, source_path, source_ref, status, confidence, score }]` |
+| `memory.write` | store distilled knowledge | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
+| `memory.invalidate` | mark dependent entries stale | `{ path?, ref? }` → `{ affected }` |
+| `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
+| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
+
+`memory.search` returns `verified` plus `draft` entries by default, with drafts
+marked, and truncates snippets to 300 characters — a pointer, never the document.
+`memory.write` dedupes by hash; a source-less record is only a `draft` with
+`confidence < 0.5`.
+
+## Context injection
+
+On every turn the plugin searches by the first 200 characters of the last user
+message and injects at most 3 entries (budget ≤ 600 tokens) as
+`[memory] title — snippet (source, status)`. If nothing matches, no block is
+added and the turn costs nothing extra. Disabled by `DSH_MEMORY_INJECT=off`;
+added latency to first token ≤ 50 ms, never blocking.
+
+## Dispatcher and specialised submodels (proposal)
+
+Beyond the MVP, the cheap L2 role can be played not by a single submodel but by
+a dispatcher with a registry of specialists: it gets the request after an L0/L1
+miss, splits it into subtopics and routes each one to a specialist. Specialists
+answer from their own knowledge plus RAG and escalate to L3 when they cannot.
+
+```text
+  request (after L0/L1 miss) --> dispatcher (manager submodel)
+     |  analyse -> split into subtopics -> route to a specialist
+     |
+     +--> developer --> reviewer --(comments)--> back to developer
+     +--> designer | tester | scientist
+     |
+     v
+  aggregate: resolve conflicts, decide escalation
+     +--> answer: reply to the agent, write-back to shared verified memory
+     +--> no answer: escalate to L3
+```
+
+| Role | Area of responsibility |
+| --- | --- |
+| developer | software engineering: implementation, debugging, refactoring; fixes per review comments |
+| designer | design: UX, interfaces, visual and interaction decisions |
+| reviewer | strict, unbiased review of the developer's code; comments go back to the author, and the reviewer never fixes the code |
+| tester | testing of all kinds: unit, integration, end-to-end, edge cases |
+| scientist | physics, mathematics, chemistry, biology and related fields |
+
+The developer → reviewer → fixes loop is the part that matters: no specialist
+signs off on its own output, and the tester works independently of the developer.
+Roles and their models are scaled through a **role registry**: a new specialist is
+a configuration entry, not a dispatcher change. Proposal only, a phase after the
+MVP. Risks: added latency, coordination cost, routing errors, conflicting answers,
+versioning of prompts and roles.
+
+## Configuration
+
+Planned configuration for `~/.dsh/cordis.patch.yml`, not yet read by any code.
+Environment variables: `DSH_MEMORY_DB`, `DSH_MEMORY_INJECT`, `DSH_MEMORY_TOP_K`.
+
+```yaml
+dsh-memory:
+  namespace: auto
+  db_path: ~/.dsh/memory
+  inject: { enabled: true, top_k: 3, token_budget: 600 }
+  search: { default_status: verified, snippet_chars: 300 }
+  index:
+    include: ["**/*.md"]
+    exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
+    max_chunk_tokens: 800
+  embeddings: { enabled: false, model: "" }
+  verify: { require_source_for_verified: true }
+```
+
+## Metrics
+
+| Goal | Metric | MVP target |
+| --- | --- | --- |
+| Cheaper repeat questions | tokens spent on repeated questions | −25% |
+| Retrieval actually works | L1 hit-rate | ≥ 20% |
+| Traceable knowledge | verified records with provenance | 100% |
+| No unsourced facts | verified records without a source | 0 |
+| Invisible overhead | added latency to first token | ≤ 50 ms |
+| Injection stays small | injected block size | ≤ 600 tokens |
+
+## Scope and security
+
+**Non-goals**
+
+- Not a replacement for `AGENTS.md` / `CLAUDE.md`; those stay the source of rules.
+- No cross-project global memory in the MVP — the namespace is the workspace.
+- No learning from conversations without verification.
+- Vector search is not mandatory; FTS5 carries the MVP.
+- No custom UI.
+
+**Privacy and safety.** The index is local and never leaves the machine; `*.env`,
+`*secret*`, `*credential*`, files with keys (`-----BEGIN`, `ghp_`, `sk-`, `AKIA`)
+and `.git-credentials` are excluded from indexing. `memory.search` returns snippets
+only, and on error the plugin stays silent, letting the turn continue.
+
+## Roadmap
+
+| Phase | Scope | Acceptance |
+| --- | --- | --- |
+| 0 | plugin skeleton, `memory.search` / `memory.write`, SQLite FTS5, CLI `index` | index builds over docs, search finds the 3 known definitions |
+| 1 | top-k injection, `memory.stats`, dedupe, stale by hash | hit-rate ≥ 20% on 20 queries, injection ≤ 600 tokens |
+| 2 | draft/verified verification, triage presets, `AGENTS.md` rules | no verified record without a source, savings measured |
+| 3 | index `.kanban` and decisions, TTL, `memory.invalidate` | stale records are never returned |
+| 4 | optional embeddings, hard L2→L3 router, dashboard | −25% tokens on repeated questions without a quality drop |
+| 5 | dispatcher and specialised submodels | proposal only, acceptance criteria to be defined |
+
+## Status and repository layout
+
+Documentation only: no code, no release. The repository contains `README.md`
+(Russian), `README.en.md` (this file), `LICENSE` and `.gitignore`. Planned and
+not yet present: plugin source, the `memory.*` implementations, the SQLite schema
+and migrations, the indexing CLI, tests, benchmarks, sample configuration. The
+detailed internal specification is not published.
+
+## License
+
+MIT, © 2026 Victor Kozachek.

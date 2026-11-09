@@ -1,0 +1,32 @@
+# Внутренние документы проекта: остаются локально, в репозиторий не попадают
+minds.md
+spec.md
+
+# macOS / редакторы
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+tmp/
+.cache/
+*.log
+
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+.git-credentials
+*.pem
+*.key
+
+# Рабочие деревья и служебное состояние доски (если появится kanban-инфраструктура)
+worktrees/
+.kanban/.watcher-state.json
+.kanban/.watcher-pending.json
