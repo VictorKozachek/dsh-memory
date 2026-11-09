@@ -194,3 +194,12 @@ test('добавка к первому токену ≤ 50 мс', (t) => {
   assert.ok(measured.latencyMs >= 0)
   assert.ok(measured.latencyMs <= 50, `инъекция добавила ${measured.latencyMs} мс`)
 })
+
+test('инъекция ищет по любому слову сообщения (matchMode any)', (t) => {
+  const store = tempStore(t)
+  addEntry(store)
+
+  const result = buildMemoryBlock(store, 'Как устроена память проекта и зачем нужен каскад?', { env: {} })
+  assert.ok(result.block, 'частичное совпадение слов не должно давать пустой блок')
+  assert.match(result.block, /^\[memory\] /)
+})
