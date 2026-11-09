@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import test from 'node:test'
@@ -228,6 +228,73 @@ test('инкрементальность по sha256 + mtime: неизменён
   assert.deepEqual(guideTitles, ['docs/guide.md → Новый раздел'])
   assert.equal(store.searchEntries('руководства').length, 0, 'старый чанк остался в FTS')
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries WHERE source_path = ?').get('README.md').n, 3)
+})
+
+test('touch без изменения содержимого не переиндексирует файл', (t) => {
+  const root = buildWorkspace(t)
+  const store = openTempStore(t)
+
+  const first = indexWorkspace({ workspace: root, store, now: () => 1_000 })
+  assert.equal(first.indexed, 2)
+
+  // Меняем только mtime: содержимое то же, переиндексации быть не должно.
+  const guide = join(root, 'docs/guide.md')
+  const future = new Date(Date.now() + 30_000)
+  utimesSync(guide, future, future)
+
+  const second = indexWorkspace({ workspace: root, store, now: () => 2_000 })
+  assert.equal(second.indexed, 0)
+  assert.equal(second.unchanged, 2)
+  assert.equal(second.chunks, 0)
+  assert.equal(second.failed.length, 0)
+  // Метаданные источника обновлены, время индексации — нет.
+  assert.equal(store.getSource('docs/guide.md').mtime, Math.floor(statSync(guide).mtimeMs))
+  assert.equal(store.getSource('docs/guide.md').indexed_at, 1_000)
+})
+
+test('переиндексация не трогает записи memory.write с тем же source_path', (t) => {
+  const root = buildWorkspace(t)
+  const store = openTempStore(t)
+  indexWorkspace({ workspace: root, store, now: () => 1_000 })
+
+  // Провенанс memory.write: запись fact ссылается на тот же файл, что индексатор.
+  const fact = store.insertEntry({
+    kind: 'fact',
+    title: 'Факт из памяти',
+    text: 'Знание, записанное через memory.write',
+    status: 'verified',
+    confidence: 1,
+    sourcePath: 'docs/guide.md',
+    author: 'session-1',
+  })
+
+  const guide = join(root, 'docs/guide.md')
+  writeFileSync(guide, '# Руководство\n\n## Раздел\n\nОбновлённый текст\n')
+  const future = new Date(Date.now() + 10_000)
+  utimesSync(guide, future, future)
+
+  const summary = indexWorkspace({ workspace: root, store })
+  assert.equal(summary.indexed, 1)
+  assert.ok(store.getEntry(fact.id), 'запись fact с тем же source_path исчезла при переиндексации')
+  assert.equal(store.getEntry(fact.id).kind, 'fact')
+  assert.equal(store.getEntry(fact.id).status, 'verified')
+
+  // А чанки индексатора по этому файлу заменены.
+  const chunks = store.database
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND kind = 'doc' AND author = 'indexer'")
+    .all('docs/guide.md')
+  assert.deepEqual(chunks.map((row) => row.title), ['docs/guide.md → Раздел'])
+})
+
+test('transaction откатывает изменения при ошибке', (t) => {
+  const store = openTempStore(t)
+
+  assert.throws(() => store.transaction(() => {
+    store.insertEntry({ kind: 'fact', title: 'Откат', text: 'Не должно сохраниться' })
+    throw new Error('boom')
+  }), /boom/)
+  assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries').get().n, 0)
+  assert.equal(store.transaction(() => 42), 42)
 })
 
 test('CLI: dsh-memory index --workspace --db-path --json', (t) => {
