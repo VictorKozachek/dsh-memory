@@ -107,17 +107,80 @@ test('дедупликация по hash повышает confidence и объе
   ])
 })
 
-test('повторный дубль без источников поднимает confidence на шаг', (t) => {
+test('дубль без источника не выводит confidence за 0.5, пока нет провенанса', (t) => {
   const store = tempStore(t)
   const entry = input({ title: 'Черновик', text: 'Наблюдение' })
 
   const first = writeMemory(store, entry, { now: () => 1_000 })
   assert.equal(store.getEntry(first.id).confidence, 0.3)
 
-  const second = writeMemory(store, entry, { now: () => 2_000 })
-  assert.equal(second.id, first.id)
-  assert.equal(second.deduped, true)
-  assert.equal(store.getEntry(first.id).confidence, 0.4)
+  // Пять подтверждений подряд: 0.3 → 0.4 → 0.49 → 0.49 … — строго < 0.5.
+  for (const timestamp of [2_000, 3_000, 4_000, 5_000, 6_000]) {
+    const duplicate = writeMemory(store, entry, { now: () => timestamp })
+    assert.equal(duplicate.id, first.id)
+    assert.equal(duplicate.deduped, true)
+    const current = store.getEntry(first.id)
+    assert.ok(current.confidence < 0.5, `confidence без источника вышла за 0.5: ${current.confidence}`)
+    assert.equal(current.source_path, null)
+    assert.equal(current.source_ref, null)
+    assert.deepEqual(store.listEntrySources(first.id), [])
+  }
+  assert.equal(store.getEntry(first.id).confidence, 0.49)
+})
+
+test('появление источника снимает потолок confidence', (t) => {
+  const store = tempStore(t)
+  const entry = input({ title: 'Наблюдение', text: 'Сначала без источника' })
+
+  const first = writeMemory(store, entry, { now: () => 1_000 })
+  assert.equal(store.getEntry(first.id).confidence, 0.3)
+  for (const timestamp of [2_000, 3_000, 4_000, 5_000, 6_000]) {
+    writeMemory(store, entry, { now: () => timestamp })
+  }
+  assert.equal(store.getEntry(first.id).confidence, 0.49)
+
+  // Дубль с источником: провенанс появился, потолок 0.49 больше не действует.
+  const sourced = writeMemory(store, input({
+    title: 'Наблюдение',
+    text: 'Сначала без источника',
+    sources: [{ path: 'docs/guide.md' }],
+  }), { now: () => 7_000 })
+
+  assert.equal(sourced.id, first.id)
+  assert.equal(sourced.deduped, true)
+  const current = store.getEntry(first.id)
+  assert.ok(current.confidence > 0.5, `потолок не снялся: ${current.confidence}`)
+  assert.equal(current.confidence, 0.6)
+  assert.equal(current.source_path, 'docs/guide.md')
+  assert.deepEqual(store.listEntrySources(first.id), [{ path: 'docs/guide.md', ref: null }])
+})
+
+test('дубль берёт максимум из текущей и входной уверенности, затем +0.1', (t) => {
+  const store = tempStore(t)
+  const entry = input({ title: 'Подтверждение', text: 'Знание', sources: [{ ref: 'task/005' }] })
+
+  const first = writeMemory(store, { ...entry, confidence: 0.2 }, { now: () => 1_000 })
+  const duplicate = writeMemory(store, { ...entry, confidence: 0.9 }, { now: () => 2_000 })
+
+  assert.equal(duplicate.id, first.id)
+  // Задумано: база — максимум из значений, шаг подтверждения 0.1.
+  assert.equal(store.getEntry(first.id).confidence, 1)
+})
+
+test('отсутствующий источник: confidence сверяется после округления', (t) => {
+  const store = tempStore(t)
+
+  // 0.495 и 0.4999 округлились бы до 0.5 — это уже не «< 0.5».
+  for (const confidence of [0.495, 0.4999, 0.5]) {
+    assert.throws(
+      () => writeMemory(store, input({ title: `Порог ${confidence}`, text: 'Наблюдение', confidence })),
+      /без источника/,
+    )
+  }
+  const allowed = writeMemory(store, input({ title: 'Ниже порога', text: 'Наблюдение', confidence: 0.494 }))
+  assert.equal(store.getEntry(allowed.id).confidence, 0.49)
+
+  assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries').get().n, 1)
 })
 
 test('без источника — только draft и confidence < 0.5', (t) => {
@@ -177,6 +240,21 @@ test('невалидный вход отклоняется с понятной �
   assert.throws(() => writeMemory(store, input({ sources: [{}] })), /path или ref/)
   assert.throws(() => writeMemory(store, input({ sources: [{ path: 'a.md' }], confidence: 1.5 })), /confidence/)
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries').get().n, 0)
+})
+
+test('updateEntry валидирует контракт полей', (t) => {
+  const store = tempStore(t)
+  const { id } = writeMemory(store, input({ title: 'Валидация', text: 'Текст' }))
+
+  assert.throws(() => store.updateEntry(id, null), /объект изменений/)
+  assert.throws(() => store.updateEntry(id, { status: 'unknown' }), /status/)
+  assert.throws(() => store.updateEntry(id, { confidence: 1.5 }), /confidence/)
+  assert.throws(() => store.updateEntry(id, { sourcePath: '' }), /sourcePath/)
+  assert.throws(() => store.updateEntry(id, { updatedAt: 1.5 }), /updatedAt/)
+
+  const updated = store.updateEntry(id, { status: 'verified', confidence: 0.6 })
+  assert.equal(updated.status, 'verified')
+  assert.equal(updated.confidence, 0.6)
 })
 
 test('схема v2: таблица entry_sources живёт вместе с записями', (t) => {
