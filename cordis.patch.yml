@@ -10,8 +10,11 @@
 # входа `lib/index.js`) и вызывает `apply(ctx, config)`. Плагин не требует
 # сервисов, поэтому грузится и в профиле без инструментов.
 #
-# Конфиг (namespace, db_path, inject, search, index, embeddings, verify)
-# добавит задача 008; пока ряд монтирует плагин с настройками по умолчанию.
+# Конфиг — блок `dsh-memory` из README (namespace, db_path, inject, search,
+# index, embeddings, verify): схема, дефолты и разбор `DSH_MEMORY_*` живут в
+# `lib/config.js`. Здесь ряд намеренно без `config`, чтобы дефолты не
+# дублировались: настройки переопределяются либо полями ряда, либо окружением.
 - insert:
     - id: dsh-memory
       name: dsh-memory
+
