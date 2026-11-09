@@ -76,7 +76,7 @@ function buildWorkspace(t) {
   writeFile(root, 'secrets/prod.env', 'API_KEY=1\n')
   writeFile(root, 'docs/private-key.md', '# Ключ\n\n-----BEGIN RSA PRIVATE KEY-----\nMIIExample\n')
   writeFile(root, 'docs/github-token.md', '# Токен\n\nghp_abcdefghijklmnopqrstuvwxyz0123456789\n')
-  writeFile(root, 'docs/openai-key.md', '# Ключ API\n\nsk-abcdefghijklmnopqrstuvwxyz012345\n')
+  writeFile(root, 'docs/openai-key.md', '# Ключ API\n\nsk-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL\n')
   writeFile(root, 'docs/aws.md', '# AWS\n\nAKIAIOSFODNN7EXAMPLE\n')
   return root
 }
@@ -166,10 +166,49 @@ test('фильтры секретов: имена файлов и маркеры
 
   assert.ok(containsSecret('-----BEGIN RSA PRIVATE KEY-----'))
   assert.ok(containsSecret('token ghp_abcdefghijklmnopqrstuvwxyz0123456789'))
-  assert.ok(containsSecret('key sk-abcdefghijklmnopqrstuvwxyz012345'))
+  assert.ok(containsSecret('key sk-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL'))
   assert.ok(containsSecret('AKIAIOSFODNN7EXAMPLE'))
   // Ложных срабатываний на обычном тексте быть не должно.
   assert.ok(!containsSecret('task-oriented и risk-management — обычная документация'))
+})
+
+test('упоминания паттернов в прозе не считаются секретами', () => {
+  const prose = [
+    'фильтр ищет -----BEGIN, ghp_, sk-, AKIA',
+    'README описывает `-----BEGIN`, `ghp_`, `sk-`, `AKIA`',
+    'PEM-заголовок `-----BEGIN RSA PRIVATE KEY-----`, `ghp_` + 36 символов, `sk-` + 48 символов, `AKIA` + 16 заглавных',
+    'regex: /-----BEGIN/ и /ghp_/ и /sk-/ и /AKIA/ — это описание фильтра',
+    'Ключ `AKIA` + 16 заглавных — это формат, а не ключ',
+  ]
+  for (const text of prose) {
+    assert.equal(containsSecret(text), false, `ложное срабатывание на: ${text}`)
+  }
+})
+
+test('синтетические ключи по-прежнему ловятся, короткие и в прозе — нет', () => {
+  // PEM-заголовки разных типов ключей.
+  assert.equal(containsSecret('-----BEGIN RSA PRIVATE KEY-----\nMIIExample'), true)
+  assert.equal(containsSecret('-----BEGIN OPENSSH PRIVATE KEY-----\nabc'), true)
+  assert.equal(containsSecret('-----BEGIN PGP PRIVATE KEY BLOCK-----\nabc'), true)
+  assert.equal(containsSecret('-----BEGIN PRIVATE KEY-----\nabc'), true)
+
+  // GitHub PAT: ровно 36 символов и больше.
+  assert.equal(containsSecret(`ghp_${'a'.repeat(36)}`), true)
+  assert.equal(containsSecret(`ghp_${'a'.repeat(35)}`), false)
+
+  // OpenAI-подобный ключ: ровно 48 символов.
+  assert.equal(containsSecret(`sk-${'a'.repeat(48)}`), true)
+  assert.equal(containsSecret(`sk-${'a'.repeat(47)}`), false)
+
+  // AWS access key id: AKIA + 16 заглавных.
+  assert.equal(containsSecret(`AKIA${'A'.repeat(16)}`), true)
+  assert.equal(containsSecret(`AKIA${'A'.repeat(15)}`), false)
+  assert.equal(containsSecret(`akia${'a'.repeat(16)}`), false)
+
+  // Ключ в fenced-блоке и отдельной строкой ловится; в prose inline-code — нет.
+  assert.equal(containsSecret(`\`\`\`\nghp_${'a'.repeat(36)}\n\`\`\``), true)
+  assert.equal(containsSecret(`\`ghp_${'a'.repeat(36)}\``), true)
+  assert.equal(containsSecret(`пример: \`ghp_${'a'.repeat(36)}\` в прозе`), false)
 })
 
 test('чанкование по ## и лимит токенов', () => {
@@ -295,6 +334,31 @@ test('transaction откатывает изменения при ошибке', 
   }), /boom/)
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries').get().n, 0)
   assert.equal(store.transaction(() => 42), 42)
+})
+
+test('e2e: индекс этого репозитория не пропускает документацию как «секрет»', (t) => {
+  const store = openTempStore(t, 'repo')
+  const summary = indexWorkspace({ workspace: rootDir, store })
+
+  assert.deepEqual(summary.secrets, [], 'документация проекта принята за секреты')
+  assert.deepEqual(summary.failed, [])
+
+  const indexed = store.database
+    .prepare('SELECT DISTINCT source_path FROM entries')
+    .all()
+    .map((row) => row.source_path)
+  for (const path of [
+    'README.md',
+    'README.en.md',
+    'AGENTS.md',
+    'PLAN.md',
+    '.kanban/specs/001-mvp.md',
+    '.kanban/tasks/003.md',
+    '.kanban/tasks/019.md',
+  ]) {
+    assert.ok(indexed.includes(path), `${path} не проиндексирован`)
+  }
+  assert.ok(summary.indexed >= 20, `проиндексировано всего ${summary.indexed} файлов`)
 })
 
 test('CLI: dsh-memory index --workspace --db-path --json', (t) => {
