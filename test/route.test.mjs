@@ -76,40 +76,31 @@ test('без token-meter: оценка локальная, публикация 
   }])
 })
 
-test('с token-meter: estimateMessage и publish используются', (t) => {
+test('реальная форма token-meter (только estimateMessage): оценка есть, публикация no-op', (t) => {
   const store = tempStore(t)
-  const published = []
+  // У настоящего ctx.tokenMeter есть только measure()/estimateMessage(); publish
+  // и record у него отсутствуют, поэтому тест не подсовывает несуществующий API.
   const tokenMeter = {
     estimateMessage: (message) => {
+      assert.equal(message.role, 'user')
       assert.equal(message.content[0].type, 'text')
+      assert.equal(message.source.kind, 'plugin')
+      assert.equal(typeof message.id, 'string')
       return 42
     },
-    publish: (metric) => published.push(metric),
   }
   const reporter = createRouteReporter(store, { tokenMeter })
 
   assert.equal(reporter.available, true)
   const result = reporter.record({ layer: 'L1', reason: 'injection hit', text: 'память проекта' })
   assert.equal(result.tokens_saved_estimate, 42)
-  assert.equal(result.published, true)
-  assert.deepEqual(published, [{ event: 'route', layer: 'L1', reason: 'injection hit', tokens_saved_estimate: 42 }])
-})
-
-test('token-meter без publish: оценка есть, публикация no-op', (t) => {
-  const store = tempStore(t)
-  const reporter = createRouteReporter(store, { tokenMeter: { estimateMessage: () => 7 } })
-
-  const result = reporter.record({ layer: 'L3', reason: 'escalated', text: 'x' })
-  assert.equal(result.tokens_saved_estimate, 7)
-  assert.equal(result.published, false)
+  assert.equal(result.published, false, 'у token-meter нет канала публикации — метрика остаётся в metrics')
+  assert.equal(routeEvents(store)[0].payload.tokens_saved_estimate, 42)
 })
 
 test('ошибки token-meter не ломают запись route', (t) => {
   const store = tempStore(t)
-  const throwing = {
-    estimateMessage: () => { throw new Error('meter down') },
-    publish: () => { throw new Error('publish down') },
-  }
+  const throwing = { estimateMessage: () => { throw new Error('meter down') } }
   const reporter = createRouteReporter(store, { tokenMeter: throwing })
 
   const result = reporter.record({ layer: 'L2', reason: 'fallback', text: 'ответ' })
@@ -118,16 +109,16 @@ test('ошибки token-meter не ломают запись route', (t) => {
   assert.equal(routeEvents(store).length, 1)
 })
 
-test('createTokenMeterAdapter: duck-typed API и fallback', () => {
+test('createTokenMeterAdapter: реальная форма API и fallback', () => {
   const heuristic = createTokenMeterAdapter(undefined)
   assert.equal(heuristic.available, false)
   assert.equal(heuristic.estimate('абвгд'), estimateTokens('абвгд'))
   assert.equal(heuristic.publish({}), false)
 
-  const meter = createTokenMeterAdapter({ estimateMessage: () => 11, record: () => {} })
+  const meter = createTokenMeterAdapter({ estimateMessage: () => 11 })
   assert.equal(meter.available, true)
   assert.equal(meter.estimate('x'), 11)
-  assert.equal(meter.publish({ event: 'route' }), true)
+  assert.equal(meter.publish({ event: 'route' }), false, 'publish на реальном token-meter — no-op')
 })
 
 test('optionalTokenMeter: ctx.get / свойство / отсутствие / исключение', () => {

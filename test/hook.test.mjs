@@ -265,8 +265,8 @@ test('lastUserMessageFromSession берёт последнее human-сообщ�
   assert.equal(lastUserMessageFromSession({}), '')
 })
 
-test('успешная инъекция пишет route L1; token-meter даёт оценку и публикацию', async (t) => {
-  // Без token-meter: route L1 с локальной оценкой, публикации нет.
+test('успешная инъекция пишет route L1; token-meter даёт оценку (публикации нет)', async (t) => {
+  // Без token-meter: route L1 с локальной оценкой.
   const plain = setupHook(t)
   await runHook(plain.listener, {
     agent: mockAgent({ cwd: plain.dbDir }),
@@ -282,11 +282,9 @@ test('успешная инъекция пишет route L1; token-meter даё�
   assert.equal(plainRoutes[0].payload.layer, 'L1')
   assert.ok(plainRoutes[0].payload.tokens_saved_estimate > 0)
 
-  // С token-meter: оценка берётся у estimateMessage, метрика публикуется.
-  const published = []
-  const withMeter = setupHook(t, {
-    tokenMeter: { estimateMessage: () => 123, publish: (metric) => published.push(metric) },
-  })
+  // С реальной формой token-meter (только estimateMessage): его оценка
+  // попадает в route-событие; канала публикации у сервиса нет.
+  const withMeter = setupHook(t, { tokenMeter: { estimateMessage: () => 123 } })
   await runHook(withMeter.listener, {
     agent: mockAgent({ cwd: withMeter.dbDir }),
     messages: [userMessage('память проекта')],
@@ -298,6 +296,4 @@ test('успешная инъекция пишет route L1; token-meter даё�
   const [meterRoute] = meterStore.listMetrics({ event: 'route' })
   meterStore.close()
   assert.equal(meterRoute.payload.tokens_saved_estimate, 123)
-  assert.equal(published.length, 1)
-  assert.deepEqual(published[0], { event: 'route', ...meterRoute.payload })
 })
