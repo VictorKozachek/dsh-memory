@@ -72,11 +72,12 @@ function tempDir(t, prefix = 'dsh-memory-hook-') {
 }
 
 /** Зарегистрировать хук на мок-контексте. */
-function setupHook(t, { entries = [{}], config = {}, env = {} } = {}) {
+function setupHook(t, { entries = [{}], config = {}, env = {}, tokenMeter } = {}) {
   const dbDir = tempDir(t)
   const namespace = 'demo'
   seedStore(dbDir, namespace, entries)
   const ctx = mockContext()
+  if (tokenMeter !== undefined) ctx.tokenMeter = tokenMeter
   const hook = registerMemoryInjection(ctx, {
     config: {
       db_path: dbDir,
@@ -262,4 +263,41 @@ test('lastUserMessageFromSession берёт последнее human-сообщ�
   })
   assert.equal(lastUserMessageFromSession(agent), 'второе')
   assert.equal(lastUserMessageFromSession({}), '')
+})
+
+test('успешная инъекция пишет route L1; token-meter даёт оценку и публикацию', async (t) => {
+  // Без token-meter: route L1 с локальной оценкой, публикации нет.
+  const plain = setupHook(t)
+  await runHook(plain.listener, {
+    agent: mockAgent({ cwd: plain.dbDir }),
+    messages: [userMessage('память проекта')],
+    turn: 1,
+    step: 1,
+    signal: { aborted: false },
+  })
+  const plainStore = openStore({ dbPath: plain.dbDir, namespace: plain.namespace })
+  const plainRoutes = plainStore.listMetrics({ event: 'route' })
+  plainStore.close()
+  assert.equal(plainRoutes.length, 1)
+  assert.equal(plainRoutes[0].payload.layer, 'L1')
+  assert.ok(plainRoutes[0].payload.tokens_saved_estimate > 0)
+
+  // С token-meter: оценка берётся у estimateMessage, метрика публикуется.
+  const published = []
+  const withMeter = setupHook(t, {
+    tokenMeter: { estimateMessage: () => 123, publish: (metric) => published.push(metric) },
+  })
+  await runHook(withMeter.listener, {
+    agent: mockAgent({ cwd: withMeter.dbDir }),
+    messages: [userMessage('память проекта')],
+    turn: 1,
+    step: 1,
+    signal: { aborted: false },
+  })
+  const meterStore = openStore({ dbPath: withMeter.dbDir, namespace: withMeter.namespace })
+  const [meterRoute] = meterStore.listMetrics({ event: 'route' })
+  meterStore.close()
+  assert.equal(meterRoute.payload.tokens_saved_estimate, 123)
+  assert.equal(published.length, 1)
+  assert.deepEqual(published[0], { event: 'route', ...meterRoute.payload })
 })
