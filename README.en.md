@@ -30,6 +30,20 @@ By design (nothing here is implemented yet), the plugin:
 - **Keeps memory honest.** Entries go stale when their source changes or
   disappears, and stale knowledge is never returned to a model.
 
+## Install and first run
+
+```bash
+dsh plugin --profile web add <path to the package>   # then restart DSH Web
+```
+
+- nothing to configure: memory is local (SQLite FTS5), no network, no API keys;
+- on the first turn the workspace markdown files are indexed in the background under a limit
+  (`DSH_MEMORY_AUTOINDEX=off` disables it);
+- `dsh-memory doctor` shows the DB path, namespace, files/chunks and skipped secrets;
+  `dsh-memory index --dry-run` shows what would be stored; `dsh-memory index` indexes manually;
+- vectors are not part of the main package: an optional `dsh-memory-embeddings` package
+  (later) owns the provider or local model.
+
 ## How it works
 
 ```text
@@ -171,7 +185,7 @@ dsh-memory:
 - Vector search is not mandatory; FTS5 carries the MVP.
 - No custom UI.
 
-**Privacy and safety.** The index is local and never leaves the machine; `*.env`,
+**Privacy and safety.** The index is local and by default the plugin never touches the network (vectors live only in the optional package); `*.env`,
 `*secret*`, `*credential*`, `.git-credentials` and keys recognized **by shape** are
 excluded from indexing: a PEM header at the start of a line
 (`-----BEGIN … PRIVATE KEY-----`), `ghp_` + 36 characters, `sk-` + 48 characters,
@@ -189,7 +203,7 @@ returns snippets only, and on error the plugin stays silent, letting the turn co
 | 1 | top-k injection, `memory.stats`, dedupe, stale by hash | hit-rate ≥ 20% on 20 queries, injection ≤ 600 tokens |
 | 2 | draft/verified verification, triage presets, `AGENTS.md` rules | no verified record without a source, savings measured |
 | 3 | index `.kanban` and decisions, TTL, `memory.invalidate` | stale records are never returned |
-| 4 | optional embeddings, hard L2→L3 router, dashboard | −25% tokens on repeated questions without a quality drop |
+| 4 | lexical search, optional embeddings package, hard L2→L3 router, dashboard | −25% tokens on repeated questions without a quality drop |
 | 5 | dispatcher and specialised submodels | proposal only, acceptance criteria to be defined |
 
 ## Status and repository layout
