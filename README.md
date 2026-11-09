@@ -4,8 +4,10 @@
 
 **English version:** [README.en.md](README.en.md)
 
-> **Статус: ранняя разработка.** Скелет плагина, хранилище SQLite и конфигурация уже в `main`;
-> `memory.*`, индексатор и инъекция — в работе по доске задач ([PLAN.md](PLAN.md)).
+> **Статус: фаза 0 закрыта.** Работают скелет плагина, хранилище SQLite, индексатор
+> с CLI `index` и модули `memory.*` (`search`/`write`/`verify`/`invalidate`/`stats`)
+> с TTL и метриками; e2e «`index` → `search` находит три определения» зелёный.
+> Инъекция top-k, каскад L2/L3 и бенчмарк — дальше по доске ([PLAN.md](PLAN.md)).
 
 ## Проблема
 
@@ -28,11 +30,34 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
 ```
 
 - настраивать ничего не нужно: память локальная (SQLite FTS5), сеть не используется, ключи не требуются;
-- при первом ходе markdown-документы воркспейса индексируются фоном с лимитом (`DSH_MEMORY_AUTOINDEX=off` отключает);
-- `dsh-memory doctor` — путь БД, namespace, файлы/чанки, отсеянные секреты; `dsh-memory index --dry-run` — что попадёт
-  в память; `dsh-memory index` — индексация вручную;
+- `dsh-memory index` — индексация markdown-документации вручную (инкрементально, с отсечением секретов);
+- планируется позже (вне фазы 0): `dsh-memory doctor` (путь БД, namespace, файлы/чанки,
+  отсеянные секреты), `dsh-memory index --dry-run` и фоновая автоиндексация при первом
+  ходе с отключением через `DSH_MEMORY_AUTOINDEX=off`;
 - векторы в основной пакет не входят: при необходимости ставится отдельный `dsh-memory-embeddings` (позже),
   и только он работает с провайдером или локальной моделью.
+
+### Первый запрос
+
+```bash
+# 1. Индексация markdown-документации воркспейса (CLI из пакета).
+#    --json печатает отчёт: files / indexed / chunks / skipped / secrets.
+#    --namespace задаёт имя памяти; без него берётся имя каталога воркспейса.
+dsh-memory index --workspace . --namespace dsh-memory --json
+
+# 2. Поиск по памяти. В профиле DSH это делает инструмент memory.search;
+#    в checkout пакета тот же вызов проверяется напрямую:
+node --input-type=module -e "
+  import { openStore } from './lib/store.js'
+  import { searchMemory } from './lib/search.js'
+  const store = openStore({ dbPath: '~/.dsh/memory', namespace: 'dsh-memory' })
+  console.log(searchMemory(store, { query: 'каскад L0 L1 L2 L3', k: 3 }))
+"
+```
+
+Запрос `memory.search` выглядит так: `{ "query": "каскад L0 L1 L2 L3", "k": 3 }`;
+ответ — массив сниппетов `[{ id, title, snippet, source_path, source_ref, status,
+confidence, score }]`, полный текст документа в выдачу не попадает.
 
 ## Как это работает
 
@@ -87,7 +112,8 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
 | `memory.verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
 | `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
 
-`memory.search` по умолчанию отдаёт сначала `verified`, затем `draft` с пометкой статуса.
+`memory.search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
+с пометкой статуса.
 `memory.write` без источника — только `draft` с confidence < 0.5; при совпадении хэша растёт confidence.
 
 ## Инъекция контекста
@@ -208,22 +234,26 @@ PEM-заголовок посреди описания (README, спека, ка
 .
 ├── package.json        — пакет dsh-memory, dsh.bundle, npm test
 ├── cordis.patch.yml    — ряд монтирования плагина в профиль
-├── lib/                — точка входа, конфиг, хранилище SQLite
-├── test/               — node:test: скелет, хранилище, конфигурация
+├── lib/                — точка входа, конфиг, хранилище SQLite, индексатор,
+│                         инструменты memory.* (search/write/verify/invalidate/stats)
+├── test/               — node:test по модулям + e2e фазы 0 (fixtures/phase0)
 ├── README.md           — этот файл, русская версия
 ├── README.en.md        — английская версия
 ├── AGENTS.md           — протокол работы агентов: роли, worktree, карточки
 ├── PLAN.md             — план проекта и очередь задач
-├── bin/                — скрипты доски: задачи, выдача, слияние
+├── bin/                — CLI `dsh-memory index` и скрипты доски
 ├── .kanban/            — доска: карточки задач и спека нарезки 001
 ├── LICENSE             — MIT
 └── .gitignore
 ```
 
-В `main` уже лежат скелет плагина (пакет, bundle-ряд, `apply`), хранилище SQLite
-(схема, миграции, namespace, FTS5) и конфигурация с переменными окружения;
-`npm test` — 32 теста. В работе: индексатор и CLI `index`, инструменты `memory.*`,
-инъекция контекста, верификация, бенчмарк. Подробная внутренняя спецификация не
+Фаза 0 закрыта: скелет плагина (пакет, bundle-ряд, `apply`), хранилище SQLite
+(схема, миграции, namespace, FTS5), индексатор документов с CLI `index`,
+инструменты `memory.search` / `memory.write` / `memory.verify` /
+`memory.invalidate` / `memory.stats`, TTL и события `metrics`; `npm test` — 99
+тестов, включая e2e «`index` → `search` находит три известных определения» на
+фикстурах `test/fixtures/phase0`. Дальше: инъекция контекста (010), метрики
+`token-meter` (011), бенчмарк MVP (015). Подробная внутренняя спецификация не
 публикуется.
 
 ## Лицензия

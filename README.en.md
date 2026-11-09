@@ -4,9 +4,12 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: early development.** The plugin skeleton, the SQLite store and the
-> configuration are already on `main`; `memory.*`, the indexer and context
-> injection are in progress on the task board ([PLAN.md](PLAN.md)).
+> **Status: phase 0 complete.** The plugin skeleton, the SQLite store, the document
+> indexer with the `index` CLI and the `memory.*` modules
+> (`search`/`write`/`verify`/`invalidate`/`stats`) with TTL and metrics are
+> working; the "`index` → `search` finds three definitions" e2e is green.
+> Context injection, the L2/L3 cascade and the benchmark come next on the board
+> ([PLAN.md](PLAN.md)).
 
 ## Problem
 
@@ -37,12 +40,35 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
 ```
 
 - nothing to configure: memory is local (SQLite FTS5), no network, no API keys;
-- on the first turn the workspace markdown files are indexed in the background under a limit
-  (`DSH_MEMORY_AUTOINDEX=off` disables it);
-- `dsh-memory doctor` shows the DB path, namespace, files/chunks and skipped secrets;
-  `dsh-memory index --dry-run` shows what would be stored; `dsh-memory index` indexes manually;
+- `dsh-memory index` indexes the markdown documentation manually (incrementally,
+  filtering secrets out);
+- planned later (outside phase 0): `dsh-memory doctor` (DB path, namespace,
+  files/chunks, skipped secrets), `dsh-memory index --dry-run`, and background
+  auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
 - vectors are not part of the main package: an optional `dsh-memory-embeddings` package
   (later) owns the provider or local model.
+
+### First query
+
+```bash
+# 1. Index the workspace markdown documentation (the package CLI).
+#    --json prints the report: files / indexed / chunks / skipped / secrets.
+#    --namespace names the memory; without it the workspace directory name is used.
+dsh-memory index --workspace . --namespace dsh-memory --json
+
+# 2. Search the memory. Inside a DSH profile the memory.search tool does this;
+#    in a package checkout the same call can be verified directly:
+node --input-type=module -e "
+  import { openStore } from './lib/store.js'
+  import { searchMemory } from './lib/search.js'
+  const store = openStore({ dbPath: '~/.dsh/memory', namespace: 'dsh-memory' })
+  console.log(searchMemory(store, { query: 'cascade L0 L1 L2 L3', k: 3 }))
+"
+```
+
+A `memory.search` request is `{ "query": "cascade L0 L1 L2 L3", "k": 3 }`; the
+answer is a list of snippets `[{ id, title, snippet, source_path, source_ref,
+status, confidence, score }]` — the full document text never leaves the store.
 
 ## How it works
 
@@ -97,8 +123,9 @@ then served to every future session *cheaper than it would have cost to verify*.
 | `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
 | `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
 
-`memory.search` returns `verified` plus `draft` entries by default, with drafts
-marked, and truncates snippets to 300 characters — a pointer, never the document.
+`memory.search` returns `verified` entries by default; `status: "all"` adds
+`draft` entries marked by status, and snippets are truncated to 300 characters —
+a pointer, never the document.
 `memory.write` dedupes by hash; a source-less record is only a `draft` with
 `confidence < 0.5`.
 
@@ -208,13 +235,14 @@ returns snippets only, and on error the plugin stays silent, letting the turn co
 
 ## Status and repository layout
 
-`main` already contains the plugin skeleton (package, bundle row, `apply`), the
-SQLite store (schema, migrations, namespace, FTS5) and the configuration with
-environment variables; `npm test` runs 32 tests. In progress: the indexer and
-the `index` CLI, the `memory.*` tools, context injection, verification and the
-benchmark. The board lives in `.kanban/`; `AGENTS.md` is the agent protocol,
-`PLAN.md` the project plan, `bin/` the board scripts. The detailed internal
-specification is not published.
+Phase 0 is complete: the plugin skeleton (package, bundle row, `apply`), the
+SQLite store (schema, migrations, namespace, FTS5), the document indexer with
+the `index` CLI, the `memory.search` / `memory.write` / `memory.verify` /
+`memory.invalidate` / `memory.stats` tools, TTL and `metrics` events; `npm test`
+runs 99 tests, including the phase 0 e2e "`index` → `search` finds three known
+definitions" over the `test/fixtures/phase0` fixtures. Next: context injection
+(010), `token-meter` metrics (011), the MVP benchmark (015). The detailed
+internal specification is not published.
 
 ## License
 
