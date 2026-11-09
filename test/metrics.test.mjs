@@ -183,3 +183,15 @@ test('METRIC_EVENTS перечисляет события памяти', () => {
     assert.ok(METRIC_EVENTS.includes(event))
   }
 })
+
+test('search-событие несёт флаг injected', (t) => {
+  const store = tempStore(t)
+  recordSearchMetric(store, { query: 'память', hits: 1, latencyMs: 1, tokensSaved: 10, injected: true })
+
+  const [metric] = store.listMetrics({ event: 'search' })
+  assert.equal(metric.payload.injected, true)
+
+  recordSearchMetric(store, { query: 'память', hits: 0, latencyMs: 1 })
+  const metrics = store.listMetrics({ event: 'search' })
+  assert.equal(metrics[1].payload.injected, false)
+})

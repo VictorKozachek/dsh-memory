@@ -258,3 +258,23 @@ test('поломка FTS не маскируется под «ничего не 
   assert.throws(() => store.searchEntries('память'), /no such table: entries_fts/)
   assert.throws(() => searchMemory(store, { query: 'память' }), /no such table: entries_fts/)
 })
+
+test('matchMode any находит запись при частичном совпадении слов', (t) => {
+  const store = tempStore(t)
+  store.insertEntry({
+    kind: 'fact',
+    title: 'Память',
+    text: 'память проекта на sqlite',
+    status: 'verified',
+    confidence: 1,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })
+
+  // По умолчанию все слова обязательны: в записи нет «как» и «устроена».
+  assert.deepEqual(searchMemory(store, { query: 'как устроена память проекта' }), [])
+
+  const any = searchMemory(store, { query: 'как устроена память проекта' }, { matchMode: 'any' })
+  assert.equal(any.length, 1)
+  assert.equal(any[0].title, 'Память')
+})
