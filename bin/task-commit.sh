@@ -142,14 +142,15 @@ worktree_for_branch() {
   return 0
 }
 
-# Карточка открытой задачи живёт в ветке задачи, а не в основном чекауте: читаем
-# сначала рабочее дерево, потом ветку, и только потом основной каталог.
+# В этом проекте карточка живёт в основном чекауте (переходы делаются из него),
+# а рабочее дерево содержит только унаследованную копию. Поэтому сначала читаем
+# основной каталог, и лишь потом рабочее дерево и ветку.
 read_card() {
   local path
   for path in \
+    "$ROOT/.kanban/tasks/$id.md" \
     "$ROOT/${KANBAN_WORKTREES_DIR:-worktrees}/$id/.kanban/tasks/$id.md" \
-    "$(worktree_for_branch "$BRANCH")/.kanban/tasks/$id.md" \
-    "$ROOT/.kanban/tasks/$id.md"; do
+    "$(worktree_for_branch "$BRANCH")/.kanban/tasks/$id.md"; do
     if [[ -n "$path" && -f "$path" ]]; then cat "$path"; return 0; fi
   done
   git -C "$ROOT" show "$BRANCH:.kanban/tasks/$id.md" 2>/dev/null && return 0
