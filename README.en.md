@@ -172,9 +172,14 @@ dsh-memory:
 - No custom UI.
 
 **Privacy and safety.** The index is local and never leaves the machine; `*.env`,
-`*secret*`, `*credential*`, files with keys (`-----BEGIN`, `ghp_`, `sk-`, `AKIA`)
-and `.git-credentials` are excluded from indexing. `memory.search` returns snippets
-only, and on error the plugin stays silent, letting the turn continue.
+`*secret*`, `*credential*`, `.git-credentials` and keys recognized **by shape** are
+excluded from indexing: a PEM header at the start of a line
+(`-----BEGIN … PRIVATE KEY-----`), `ghp_` + 36 characters, `sk-` + 48 characters,
+`AKIA` + 16 uppercase characters. Bare marker mentions and a PEM header in the
+middle of a description (README, spec, task cards) are not treated as secrets —
+otherwise the project's own documentation would drop out of memory; a key in
+inline code, a list, or a fenced block is still filtered out. `memory.search`
+returns snippets only, and on error the plugin stays silent, letting the turn continue.
 
 ## Roadmap
 
