@@ -72,11 +72,12 @@ function tempDir(t, prefix = 'dsh-memory-hook-') {
 }
 
 /** Зарегистрировать хук на мок-контексте. */
-function setupHook(t, { entries = [{}], config = {}, env = {} } = {}) {
+function setupHook(t, { entries = [{}], config = {}, env = {}, tokenMeter } = {}) {
   const dbDir = tempDir(t)
   const namespace = 'demo'
   seedStore(dbDir, namespace, entries)
   const ctx = mockContext()
+  if (tokenMeter !== undefined) ctx.tokenMeter = tokenMeter
   const hook = registerMemoryInjection(ctx, {
     config: {
       db_path: dbDir,
@@ -229,11 +230,24 @@ test('добавка хука к ходу ≤ 50 мс после разогре�
     step: 1,
     signal: { aborted: false },
   }
+  // Разогрев. Полный прогон node --test идёт параллельно другими файлами,
+  // поэтому wall-clock берём лучшим из трёх, а CPU-время процесса — как
+  // изолированную оценку реальной добавки (чужая нагрузка его не раздувает).
   await runHook(listener, payload)
-  const startedAt = performance.now()
+  let best = Number.POSITIVE_INFINITY
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const startedAt = performance.now()
+    await runHook(listener, payload)
+    best = Math.min(best, performance.now() - startedAt)
+  }
+
+  const cpuBefore = process.cpuUsage()
   await runHook(listener, payload)
-  const duration = performance.now() - startedAt
-  assert.ok(duration <= 50, `хук добавил ${duration} мс`)
+  const cpu = process.cpuUsage(cpuBefore)
+  const cpuMs = (cpu.user + cpu.system) / 1_000
+
+  assert.ok(best <= 50, `хук добавил ${best} мс wall-clock`)
+  assert.ok(cpuMs <= 50, `хук потребил ${cpuMs} мс CPU`)
 })
 
 test('createPluginMessage: форма сообщения, заморозка и уникальный id', () => {
@@ -262,4 +276,39 @@ test('lastUserMessageFromSession берёт последнее human-сообщ�
   })
   assert.equal(lastUserMessageFromSession(agent), 'второе')
   assert.equal(lastUserMessageFromSession({}), '')
+})
+
+test('успешная инъекция пишет route L1 как расход (injected_tokens), не экономию', async (t) => {
+  // Без token-meter: route L1 с локальной оценкой расхода.
+  const plain = setupHook(t)
+  await runHook(plain.listener, {
+    agent: mockAgent({ cwd: plain.dbDir }),
+    messages: [userMessage('память проекта')],
+    turn: 1,
+    step: 1,
+    signal: { aborted: false },
+  })
+  const plainStore = openStore({ dbPath: plain.dbDir, namespace: plain.namespace })
+  const plainRoutes = plainStore.listMetrics({ event: 'route' })
+  plainStore.close()
+  assert.equal(plainRoutes.length, 1)
+  assert.equal(plainRoutes[0].payload.layer, 'L1')
+  assert.equal(plainRoutes[0].payload.tokens_saved_estimate, 0, 'L1-инъекция — расход, а не экономия')
+  assert.ok(plainRoutes[0].payload.injected_tokens > 0)
+
+  // С реальной формой token-meter (только estimateMessage): его оценка
+  // попадает в injected_tokens; канала публикации у сервиса нет.
+  const withMeter = setupHook(t, { tokenMeter: { estimateMessage: () => 123 } })
+  await runHook(withMeter.listener, {
+    agent: mockAgent({ cwd: withMeter.dbDir }),
+    messages: [userMessage('память проекта')],
+    turn: 1,
+    step: 1,
+    signal: { aborted: false },
+  })
+  const meterStore = openStore({ dbPath: withMeter.dbDir, namespace: withMeter.namespace })
+  const [meterRoute] = meterStore.listMetrics({ event: 'route' })
+  meterStore.close()
+  assert.equal(meterRoute.payload.tokens_saved_estimate, 0)
+  assert.equal(meterRoute.payload.injected_tokens, 123)
 })

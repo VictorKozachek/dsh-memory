@@ -110,7 +110,7 @@ confidence, score }]`, полный текст документа в выдач�
 | `memory.write` | записать знание | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
 | `memory.invalidate` | пометить устаревшее | `{ path?, ref? }` → `{ affected }` |
 | `memory.verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
+| `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate }` |
 
 `memory.search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
 с пометкой статуса.
@@ -197,6 +197,13 @@ dsh-memory:
 | Нет знаний без источника | записи `verified` без источника | 0 |
 | Память не тормозит ход | добавка к первому токену | ≤ 50 мс |
 | Инъекция остаётся компактной | размер блока инъекции | ≤ 600 токенов |
+
+Семантика `memory.stats`: `injected_tokens` — расход на инъекции памяти (каждый
+ход добавляет снапшот-блок в историю, поэтому расход копится); `tokens_saved_estimate`
+— экономия только там, где ход обслужен L2 вместо L3, в MVP остаётся 0 до
+калибровки бенчмарком 015. `dsh-token-meter` (если доступен) используется как
+авторитетный оценщик токенов (`estimateMessage`); канала публикации метрик в
+нём нет, метрики живут в собственной таблице `metrics`.
 
 ## Границы и безопасность
 
