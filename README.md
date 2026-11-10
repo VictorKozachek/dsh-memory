@@ -107,6 +107,13 @@ write-back обязан передавать `author` вида `cascade:*`/`mode
 
 ## Память (RAG)
 
+Поиск лексический, без векторов и сети: FTS5 по стеммированному индексу
+(русский Snowball + мягкие основы), trigram-индекс для опечаток и подстрок,
+синонимы из `data/synonyms.json` (выключаются `search.synonyms: false`) и
+отдельный канал `verified` Q&A: ответы с совпадением в заголовке идут выше
+обычных сниппетов. Чистый `unicode61` остаётся как движок сравнения
+(`engine: "unicode61"` / `dsh-memory bench --compare`).
+
 | Свойство | Как планируется |
 |---|---|
 | Хранилище | SQLite, файл `~/.dsh/memory/<namespace>.db`: `entries` (`kind` = `doc`, `decision`, `fact`, `answer`, `code-note`), `entries_fts` (FTS5), `sources`, `metrics` |
@@ -192,7 +199,7 @@ dsh-memory:
   namespace: auto                                  # auto = имя воркспейса
   db_path: ~/.dsh/memory
   inject: { enabled: true, top_k: 3, token_budget: 600 }
-  search: { default_status: verified, snippet_chars: 300 }
+  search: { default_status: verified, snippet_chars: 300, synonyms: true }
   index:
     include: ["**/*.md"]
     exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
