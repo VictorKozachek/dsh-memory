@@ -294,9 +294,10 @@ embeddings: включены (provider=openai-compatible, model=text-embedding-3
   отчёте 016 не замерялась (нет артефакта); это граница для 016/021.
 - Сервис `memory.search` основного пакета стал асинхронным и ждёт async-каналы;
   `memory.searchSync` сохраняет синхронный контракт для CLI/бенчмарка.
-- Событие `memory/entries-changed` из §2 пока не реализовано: локальный канал
-  лениво досчитывает, API/Ollama — при первом поиске по store; live-обновление
-  при write/verify — следующий шаг.
+- Событие `memory/entries-changed` из §2 реализовано: store уведомляет об
+  insert/update/invalidate/stale, основной сервис эмитит событие, async-канал
+  API/Ollama подписан и досчитывает векторы только изменённых записей на
+  следующем поиске; локальный канал досчитывает лениво.
 - Нейросетевая локальная модель (ONNX/WASM) и ANN остаются открытыми
   вопросами 021; отчёт [benchmark-embeddings.md](benchmark-embeddings.md)
   фиксирует baseline и цену опции.

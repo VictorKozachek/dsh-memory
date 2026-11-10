@@ -293,6 +293,10 @@ code; all egress lives in the optional package, the key comes from env only, and
 `dsh-memory-embeddings doctor --config <file.json>`; design and criteria:
 [docs/embeddings-design.md](docs/embeddings-design.md).
 
+The main package's `memory.search` is **async** (it waits for embedding
+channels); `memory.searchSync` is the synchronous variant for CLI/benchmarks
+that skips async channels.
+
 ## Metrics
 
 | Goal | Metric | MVP target |

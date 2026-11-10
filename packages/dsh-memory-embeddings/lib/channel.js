@@ -90,14 +90,27 @@ export function createAsyncChannel({
   log = () => {},
 } = {}) {
   const prepared = new WeakSet()
+  const known = new Set()
   return {
     name: 'embeddings',
     weight,
+    /**
+     * Событие `memory/entries-changed`: помечаем известные store как грязные,
+     * чтобы следующий поиск досчитал только новые/изменённые записи.
+     *
+     * @returns {void}
+     */
+    entriesChanged() {
+      for (const store of known) prepared.delete(store)
+    },
     async search({ store, query, limit = 20 } = {}) {
       if (!store || typeof store.listEmbeddings !== 'function' || typeof query !== 'string' || query.trim() === '') return []
+      known.add(store)
+      // Первый поиск/событие entries-changed — досчитываем отсутствующие
+      // векторы; обычный поиск не сканирует таблицу на каждом ходе.
       if (backfill && !prepared.has(store)) {
-        prepared.add(store)
         await backfillEmbeddings({ store, provider, model, batch_size, log })
+        prepared.add(store)
       }
       const { vectors } = await provider.embed([query])
       const queryVector = vectors?.[0]

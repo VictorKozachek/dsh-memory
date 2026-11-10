@@ -289,6 +289,10 @@ egress — в опциональном пакете, ключ только из 
 `dsh-memory-embeddings doctor --config <файл.json>`; дизайн и критерии —
 [docs/embeddings-design.md](docs/embeddings-design.md).
 
+Сервис `memory.search` в основном пакете **асинхронный** (ждёт async-каналы
+эмбеддингов); для CLI/бенчмарка есть синхронный `memory.searchSync`, который
+async-каналы пропускает.
+
 ## Метрики
 
 | Цель | Метрика | Планка MVP |

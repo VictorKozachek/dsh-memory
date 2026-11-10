@@ -240,9 +240,15 @@ test('doctor предупреждает об отправке текста дл�
   const api = doctorReport(resolveConfig({ enabled: true, provider: 'openai-compatible', model: 'm' }).config, {
     provider: { kind: 'openai-compatible', model: 'm' },
   })
-  assert.ok(api.some((line) => line.level === 'warn' && line.message.includes('ВНИМАНИЕ')))
+  assert.ok(api.some((line) => line.level === 'warn'))
+  assert.ok(api.every((line) => !line.message.startsWith('ВНИМАНИЕ:')), 'префикс добавляет команда, не отчёт')
   assert.ok(api.some((line) => line.message.includes('api_key_env') || line.message.includes('env')))
   assert.ok(!api.some((line) => line.message.includes('secret')))
+
+  const onnx = doctorReport(resolveConfig({ enabled: true, provider: 'local-onnx', model: 'm' }).config, {
+    provider: { kind: 'local-onnx', model: 'm' },
+  })
+  assert.ok(onnx.every((line) => line.level === 'info'), 'офлайн local-onnx не должен пугать отправкой текста')
 })
 
 test('отчёт эмбеддингов: качество и латентность против FTS5, дефолт выключен', () => {
@@ -303,6 +309,14 @@ test('async-канал API/Ollama: гибрид работает через sear
   const block = await buildMemoryBlockAsync(store, 'индексатор', { env: {}, channels: [channel] })
   assert.ok(block.block !== null)
   assert.ok(calls.length > 0)
+
+  // Событие entries-changed помечает канал грязным; новый вектор считается
+  // на следующем поиске, без перезагрузки плагина.
+  const added = add(store, 'Индексатор 2', 'Ещё один индексатор файлов').id
+  channel.entriesChanged()
+  const again = await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })
+  assert.ok(again.some((row) => row.id === added))
+  assert.ok(store.listEmbeddings(provider.model).some((row) => row.entryId === added))
 })
 
 test('apply с API-провайдером регистрирует async-канал и даёт гибрид', async (t) => {
@@ -340,7 +354,7 @@ test('apply с API-провайдером регистрирует async-кан�
     api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY_TEST',
   })
   assert.equal(channels.length, 1)
-  assert.ok(logs.some((line) => line.includes('ВНИМАНИЕ')), logs.join('\n'))
+  assert.ok(logs.some((line) => line.includes('запросы и тексты записей')), logs.join('\n'))
 
   const results = await searchMemoryAsync(store, { query: 'индексатор' }, { channels })
   assert.ok(results.some((row) => row.id === id))
@@ -360,10 +374,24 @@ test('local-onnx провайдер принимает локальный embedd
   assert.ok(results.some((row) => row.id === id))
 
   const unavailable = createLocalOnnxProvider({ model: 'missing-model' })
-  await assert.rejects(() => unavailable.embed(['текст']), /model_path|@xenova\/transformers|канал выключен/)
+  await assert.rejects(() => unavailable.embed(['текст']), /model_path/)
 
-  const blocked = createLocalOnnxProvider({ model: 'missing-model', model_path: '/tmp/mock-model', env: { DSH_MEMORY_NO_NETWORK: '1' } })
-  await assert.rejects(() => blocked.embed(['текст']), /сеть запрещена/)
+  // NO_NETWORK разрешён, если модель лежит локально и allowRemoteModels=false:
+  // загрузчик не ходит в сеть. Проверяем оба режима (с флагом и без).
+  const modelDir = mkdtempSync(join(tmpdir(), 'dsh-memory-onnx-model-'))
+  t.after(() => rmSync(modelDir, { recursive: true, force: true }))
+  const fakeTransformers = {
+    env: {},
+    pipeline: async () => async (texts) => ({
+      data: Float32Array.from(texts.flatMap((text) => (String(text).includes('индексатор') ? [1, 0] : [0, 1]))),
+    }),
+  }
+  for (const env of [{}, { DSH_MEMORY_NO_NETWORK: '1' }]) {
+    const local = createLocalOnnxProvider({ model_path: modelDir, env, transformers: fakeTransformers })
+    const result = await local.embed(['индексатор', 'другое'])
+    assert.equal(result.vectors.length, 2)
+    assert.equal(fakeTransformers.env.allowRemoteModels, false)
+  }
 })
 
 
@@ -387,6 +415,7 @@ test('doctor-команда опционального пакета: преду�
   assert.equal(withKey.code, 0)
   const text = withKey.lines.join('\n')
   assert.match(text, /ВНИМАНИЕ/)
+  assert.doesNotMatch(text, /ВНИМАНИЕ: ВНИМАНИЕ:/)
   assert.match(text, /ключ найден в env DSH_MEMORY_DOCTOR_TEST_KEY/)
   assert.ok(!text.includes('super-secret-value'), 'значение ключа не должно печататься')
 
@@ -424,7 +453,7 @@ test('сервис memory.search асинхронный и использует 
   assert.equal(typeof service.searchSync, 'function')
 })
 
-test('local-onnx при NO_NETWORK не делает сетевых вызовов до загрузки модели', async (t) => {
+test('local-onnx с отсутствующей локальной моделью не делает сетевых вызовов', async (t) => {
   const originalFetch = globalThis.fetch
   let fetched = 0
   globalThis.fetch = async () => { fetched += 1; throw new Error('network must not be called') }
@@ -434,6 +463,39 @@ test('local-onnx при NO_NETWORK не делает сетевых вызово
     model_path: '/tmp/does-not-exist-onnx',
     env: { DSH_MEMORY_NO_NETWORK: '1' },
   })
-  await assert.rejects(() => provider.embed(['текст']), /сеть запрещена/)
+  await assert.rejects(() => provider.embed(['текст']), /локальная модель не найдена/)
   assert.equal(fetched, 0)
+})
+
+
+test('store уведомляет об изменениях записей (insert/update/invalidate) для backfill', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-changes-'))
+  const changes = []
+  const store = openStore({ dbPath: dir, namespace: 'demo', onChange: (change) => changes.push(change) })
+  t.after(() => { store.close(); rmSync(dir, { recursive: true, force: true }) })
+
+  const { id } = store.insertEntry({ kind: 'doc', title: 'Запись', text: 'текст', status: 'verified', confidence: 1, sourcePath: 'docs/a.md' })
+  store.updateEntry(id, { confidence: 0.9 })
+  store.invalidateBySource({ path: 'docs/a.md' })
+  assert.deepEqual(changes.map((change) => change.action), ['insert', 'update', 'invalidate'])
+  assert.equal(changes[0].ids[0], id)
+  assert.equal(changes[0].namespace, 'demo')
+})
+
+test('основной сервис эмитит memory/entries-changed при записи в store', async (t) => {
+  const { apply: pluginApply } = await import('../lib/index.js')
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-events-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  let service
+  const events = []
+  const ctx = {
+    on: () => {},
+    emit: (name, payload) => events.push({ name, payload }),
+    provide: (name, value) => { service = value },
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  pluginApply(ctx, { db_path: dir, namespace: 'demo' })
+  const store = service.storeFor(process.cwd())
+  store.insertEntry({ kind: 'doc', title: 'Событие', text: 'текст', status: 'verified', confidence: 1 })
+  assert.ok(events.some((event) => event.name === 'memory/entries-changed' && event.payload.ids.length === 1))
 })

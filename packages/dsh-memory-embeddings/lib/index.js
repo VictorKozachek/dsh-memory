@@ -121,7 +121,13 @@ export function apply(ctx, config = {}) {
         log: (level, message) => log(ctx, level, message),
       })
     const off = memory.registerSearchChannel(channel)
-    if (typeof ctx?.effect === 'function') ctx.effect(() => off)
+    if (typeof ctx.effect === 'function') ctx.effect(() => off)
+    // Событие основного пакета: новые/изменённые записи помечают канал
+    // грязным, и следующий поиск досчитывает только их (без скана на каждом ходе).
+    if (typeof ctx.on === 'function' && typeof channel.entriesChanged === 'function') {
+      const offChanged = ctx.on('memory/entries-changed', () => channel.entriesChanged())
+      if (typeof ctx.effect === 'function') ctx.effect(() => offChanged)
+    }
   } catch (error) {
     log(ctx, 'warn', `embeddings: канал не зарегистрирован (${error instanceof Error ? error.message : String(error)}); используется FTS5`)
   }
