@@ -306,3 +306,27 @@ test('запись от модели: draft, confidence ≤ 0.6, включая 
   assert.equal(store.getEntry(human.id).confidence, 0.9)
   assert.equal(store.getEntry(human.id).status, 'draft')
 })
+
+test('дубль от модели не понижает уверенность человеческой записи', (t) => {
+  const store = tempStore(t)
+  const human = writeMemory(store, input({
+    title: 'Человеческое знание',
+    text: 'Проверено человеком',
+    sources: [{ path: 'docs/a.md' }],
+    author: 'session-1',
+    confidence: 0.9,
+  }))
+  assert.equal(store.getEntry(human.id).confidence, 0.9)
+
+  writeMemory(store, input({
+    title: 'Человеческое знание',
+    text: 'Проверено человеком',
+    sources: [{ ref: 'cascade:L3' }],
+    author: 'cascade:L3',
+    confidence: 0.3,
+  }))
+
+  const entry = store.getEntry(human.id)
+  assert.equal(entry.confidence, 0.9, 'модель не подтверждает и не понижает человеческую запись')
+  assert.equal(entry.author, 'session-1')
+})

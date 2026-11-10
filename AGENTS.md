@@ -83,7 +83,9 @@ task/<id> main`), чтобы ветка начиналась от актуаль
     L2/L3 дистиллят пишется в память как `draft` с источником и
     `confidence ≤ 0.6` (write-back); `verified` ставится только `memory.verify`
     с источником и `verified_by` — PASS ревью/теста (`reviewer`/`verifier`/
-    `tester`) или подтверждение человека; `memory.write` не пишет `verified`.
+    `tester`) или подтверждение человека; голый id сессии не принимается;
+    `memory.write` не пишет `verified`. Ручное исключение — только `human`
+    с `requireSource: false`.
 
 ## Лимиты и очередь
 

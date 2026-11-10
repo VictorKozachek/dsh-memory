@@ -80,13 +80,13 @@ test('verified ставится только через memory.verify, с ист
 
 test('verify принимает PASS ревью/теста, человека и id сессии, но не произвольную строку', (t) => {
   const store = tempStore(t)
-  const accepted = ['human', 'reviewer:session-1', 'verifier:task-013', 'tester-1', '7a1c2e9d-0b3f-4c5d-8e6f-9a0b1c2d3e4f']
+  const accepted = ['human', 'reviewer:session-1', 'verifier:task-013', 'tester-1']
   for (const verifiedBy of accepted) {
     const { id } = writeDraft(store)
     assert.deepEqual(verifyMemory(store, { id, verified_by: verifiedBy }), { id, status: 'verified' }, `не принят ${verifiedBy}`)
   }
 
-  for (const verifiedBy of ['robot', 'x', 'model', 'reviewer:']) {
+  for (const verifiedBy of ['robot', 'x', 'model', 'reviewer:', '7a1c2e9d-0b3f-4c5d-8e6f-9a0b1c2d3e4f']) {
     const { id } = writeDraft(store)
     assert.throws(() => verifyMemory(store, { id, verified_by: verifiedBy }), /verified_by/, `принят ${verifiedBy}`)
     assert.equal(store.getEntry(id).status, 'draft')
@@ -120,4 +120,37 @@ test('запись каскада (write-back модели) остаётся dra
 
   // Такой draft нельзя верифицировать без источника/подтверждения — как и любой другой.
   assert.throws(() => verifyMemory(store, { id: l3.entryId }), /verified_by/)
+})
+
+test('requireSource:false — ручное исключение только для человека', (t) => {
+  const store = tempStore(t)
+  const humanTarget = store.insertEntry({
+    kind: 'fact',
+    title: 'Ручное подтверждение',
+    text: 'знание без источника',
+    status: 'draft',
+    confidence: 0.4,
+    createdAt: NOW,
+    updatedAt: NOW,
+  })
+  assert.deepEqual(verifyMemory(store, { id: humanTarget.id, verified_by: 'human' }, { requireSource: false }), {
+    id: humanTarget.id,
+    status: 'verified',
+  })
+
+  // PASS ревью/теста без источника не проходит даже с requireSource:false.
+  const reviewerTarget = store.insertEntry({
+    kind: 'fact',
+    title: 'Без источника и ревью',
+    text: 'знание без провенанса',
+    status: 'draft',
+    confidence: 0.4,
+    createdAt: NOW,
+    updatedAt: NOW,
+  })
+  assert.throws(
+    () => verifyMemory(store, { id: reviewerTarget.id, verified_by: 'reviewer:session-1' }, { requireSource: false }),
+    /только "human"/,
+  )
+  assert.equal(store.getEntry(reviewerTarget.id).status, 'draft')
 })

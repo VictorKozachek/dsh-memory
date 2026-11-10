@@ -104,10 +104,13 @@ answer is distilled back into memory as a `draft` with a source (write-back);
 `verified` is set only by confirmation (006/013).
 
 **Verified knowledge only.** Write-back is gated: a distilled answer is stored as
-`draft` with `confidence ≤ 0.6` and becomes `verified` only through
+`draft` with `confidence ≤ 0.6` (model write-back must pass an
+`cascade:*`/`model*`/`triage*` `author`) and becomes `verified` only through
 `memory.verify`, which requires a source and a confirmer: a review/test PASS
-(`reviewer:…`/`verifier:…`/`tester:…`), a human (`human`), or a DSH session id.
-`memory.write` cannot write `verified` directly. Otherwise one hallucination enters the index and is
+(`reviewer:…`/`verifier:…`/`tester:…`) or a human (`human`); a bare session id is
+rejected so a session cannot confirm its own record. `memory.write` cannot write
+`verified` directly. The only manual exception is `human` confirming a source-less
+entry with `requireSource: false` — an explicit human act, not a review/test PASS. Otherwise one hallucination enters the index and is
 then served to every future session *cheaper than it would have cost to verify*.
 
 ## Memory (RAG)
