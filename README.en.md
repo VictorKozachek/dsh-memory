@@ -104,8 +104,10 @@ answer is distilled back into memory as a `draft` with a source (write-back);
 `verified` is set only by confirmation (006/013).
 
 **Verified knowledge only.** Write-back is gated: a distilled answer is stored as
-`draft` with provenance and becomes `verified` only after a review/test PASS or
-explicit human confirmation. Otherwise one hallucination enters the index and is
+`draft` with `confidence ≤ 0.6` and becomes `verified` only through
+`memory.verify`, which requires a source and a confirmer: a review/test PASS
+(`reviewer:…`/`verifier:…`/`tester:…`), a human (`human`), or a DSH session id.
+`memory.write` cannot write `verified` directly. Otherwise one hallucination enters the index and is
 then served to every future session *cheaper than it would have cost to verify*.
 
 ## Memory (RAG)

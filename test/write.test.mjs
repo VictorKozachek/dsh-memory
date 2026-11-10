@@ -274,3 +274,35 @@ test('схема v2: таблица entry_sources живёт вместе с з�
   store.database.prepare('DELETE FROM entries WHERE id = ?').run(id)
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entry_sources').get().n, 0)
 })
+
+test('запись от модели: draft, confidence ≤ 0.6, включая дубли', (t) => {
+  const store = tempStore(t)
+  const modelInput = input({
+    title: 'Ответ модели',
+    text: 'Ответ, дистиллированный из L3',
+    sources: [{ ref: 'task/013' }],
+    author: 'cascade:L3',
+    confidence: 0.95,
+  })
+
+  const first = writeMemory(store, modelInput, { now: () => 1_000 })
+  const entry = store.getEntry(first.id)
+  assert.equal(entry.status, 'draft')
+  assert.equal(entry.confidence, 0.6, 'модельный draft не выходит за 0.6')
+  assert.equal(entry.author, 'cascade:L3')
+
+  // Дубль тоже не пробивает потолок, хотя обычная запись получила бы +0.1.
+  writeMemory(store, modelInput, { now: () => 2_000 })
+  assert.equal(store.getEntry(first.id).confidence, 0.6)
+
+  // Человеческая запись потолком модели не ограничена.
+  const human = writeMemory(store, input({
+    title: 'Человеческая запись',
+    text: 'Проверено человеком',
+    sources: [{ path: 'docs/a.md' }],
+    author: 'session-1',
+    confidence: 0.9,
+  }))
+  assert.equal(store.getEntry(human.id).confidence, 0.9)
+  assert.equal(store.getEntry(human.id).status, 'draft')
+})
