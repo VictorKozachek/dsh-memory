@@ -95,6 +95,14 @@ status, confidence, score }]` — the full document text never leaves the store.
 | L2 | cheap submodel under `ANSWER \| NO_ANSWER`, allowed to say "I don't know" | limited `max_tokens` |
 | L3 | the main model from the session settings, only on `NO_ANSWER` | full price |
 
+**Cascade rule.** Before any model answer, search memory (`memory.search`, L1).
+On a miss, use the `triage` preset (L2: cheap `deepseek-v4-flash` model,
+`ANSWER | NO_ANSWER` contract; markers are recognized with trailing punctuation,
+so `NO_ANSWER.` is a refusal, not an answer). On `NO_ANSWER`, call the main
+model (L3). An L2/L3
+answer is distilled back into memory as a `draft` with a source (write-back);
+`verified` is set only by confirmation (006/013).
+
 **Verified knowledge only.** Write-back is gated: a distilled answer is stored as
 `draft` with provenance and becomes `verified` only after a review/test PASS or
 explicit human confirmation. Otherwise one hallucination enters the index and is
@@ -189,7 +197,22 @@ dsh-memory:
     max_chunk_tokens: 800
   embeddings: { enabled: false, model: "" }
   verify: { require_source_for_verified: true }
+  cascade:
+    enabled: false                                 # soft cascade L1 -> L2 (triage) -> L3
+    preset: triage                                 # presets/triage.json: cheap model, ANSWER | NO_ANSWER
+    model: ""                                      # overrides the preset model (deepseek-v4-flash)
+    max_tokens: 300
+    write_back: true                               # L2/L3 answer -> memory.write (draft with a source)
 ```
+
+The `triage` preset is a cascade descriptor (`presets/triage.json`: cheap model,
+`ANSWER | NO_ANSWER` contract, `max_tokens`), not a DSH agent preset: routing is
+owned by `lib/cascade.js` and enabled by the `cascade` section above. After an
+L2/L3 answer the cascade writes a distilled entry back to memory as a `draft`
+with a source (`write_back`). When the provider supplies no sources, the entry
+gets the synthetic `source_ref` `cascade:L2`/`cascade:L3`. `cascade.enabled:
+false` is the supported "no cheap model" mode: memory (L1) is still searched
+first, then the main model (L3) runs directly.
 
 ## Metrics
 

@@ -1,0 +1,14 @@
+{
+  "id": "triage",
+  "name": "Triage",
+  "description": "Дешёвая сабмодель каскада: отвечает только при уверенности, иначе NO_ANSWER",
+  "layer": "L2",
+  "contract": {
+    "answer": "ANSWER",
+    "noAnswer": "NO_ANSWER"
+  },
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash",
+  "maxTokens": 300,
+  "temperature": 0
+}

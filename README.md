@@ -87,6 +87,12 @@ confidence, score }]`, полный текст документа в выдач�
 - **write-back.** Успешный ответ дистиллируется в запись, получает провенанс и статус `draft`;
   после PASS ревью/теста или подтверждения человеком запись становится `verified` и живёт на L1.
 
+**Правило каскада.** Перед ответом моделью — `memory.search` (L1). Промах — пресет `triage`
+(L2: дешёвая модель `deepseek-v4-flash`, контракт `ANSWER | NO_ANSWER`; маркеры распознаются
+с хвостовой пунктуацией — `NO_ANSWER.` это отказ, а не ответ). `NO_ANSWER` — основная
+модель (L3). Ответ L2/L3 дистиллируется в память как `draft` с источником (write-back), `verified`
+ставится только подтверждением (006/013).
+
 Ключевое правило — **в память пишется только проверенное**. Иначе галлюцинация сохранится в RAG
 и будет тиражироваться дешевле, чем проверялась, а заметить её станет труднее.
 
@@ -183,9 +189,23 @@ dsh-memory:
     max_chunk_tokens: 800
   embeddings: { enabled: false, model: "" }
   verify: { require_source_for_verified: true }
+  cascade:
+    enabled: false                                 # мягкий каскад L1 → L2 (triage) → L3
+    preset: triage                                 # presets/triage.json: дешёвая модель, ANSWER | NO_ANSWER
+    model: ""                                      # перекрывает модель пресета (deepseek-v4-flash)
+    max_tokens: 300
+    write_back: true                               # ответ L2/L3 → memory.write (draft с источником)
 ```
 
 Переменные окружения: `DSH_MEMORY_DB`, `DSH_MEMORY_INJECT`, `DSH_MEMORY_TOP_K`.
+
+Пресет `triage` — это дескриптор каскада (`presets/triage.json`: дешёвая модель,
+контракт `ANSWER | NO_ANSWER`, `max_tokens`), а не DSH agent preset: маршрутизацией
+управляет `lib/cascade.js`, включение — секцией `cascade` выше. После ответа L2/L3
+каскад пишет дистиллят в память как `draft` с источником (`write_back`). Если провайдер
+не вернул источники, запись получает синтетический `source_ref` `cascade:L2`/`cascade:L3`.
+`cascade.enabled: false` — это штатная семантика «без дешёвой модели»: память (L1)
+ищется всегда, затем сразу основная модель (L3).
 
 ## Метрики
 
