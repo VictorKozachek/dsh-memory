@@ -269,11 +269,18 @@ test('инкрементальность по sha256 + mtime: неизменён
   assert.equal(third.indexed, 1)
   assert.equal(third.unchanged, 1)
 
+  // Старый чанк не удаляется, а помечается stale (задача 014): из выдачи он
+  // исчезает, но остаётся следом для аудита.
   const guideTitles = store.database
-    .prepare('SELECT title FROM entries WHERE source_path = ?')
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND status = 'verified'")
     .all('docs/guide.md')
     .map((row) => row.title)
   assert.deepEqual(guideTitles, ['docs/guide.md → Новый раздел'])
+  const staleTitles = store.database
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND status = 'stale'")
+    .all('docs/guide.md')
+    .map((row) => row.title)
+  assert.deepEqual(staleTitles, ['docs/guide.md → Раздел'])
   assert.equal(store.searchEntries('руководства').length, 0, 'старый чанк остался в FTS')
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries WHERE source_path = ?').get('README.md').n, 3)
 })
@@ -327,11 +334,15 @@ test('переиндексация не трогает записи memory.write
   assert.equal(store.getEntry(fact.id).kind, 'fact')
   assert.equal(store.getEntry(fact.id).status, 'verified')
 
-  // А чанки индексатора по этому файлу заменены.
+  // А чанки индексатора по этому файлу заменены: старый stale, новый verified.
   const chunks = store.database
-    .prepare("SELECT title FROM entries WHERE source_path = ? AND kind = 'doc' AND author = 'indexer'")
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND author = 'indexer' AND status = 'verified'")
     .all('docs/guide.md')
   assert.deepEqual(chunks.map((row) => row.title), ['docs/guide.md → Раздел'])
+  const stale = store.database
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND author = 'indexer' AND status = 'stale'")
+    .all('docs/guide.md')
+  assert.deepEqual(stale.map((row) => row.title), ['docs/guide.md → Раздел'])
 })
 
 test('transaction откатывает изменения при ошибке', (t) => {
@@ -414,4 +425,41 @@ test('package.json публикует CLI-команду dsh-memory', () => {
   // В `files` — только сам CLI-файл: репозиторные bin/*.sh в пакет не попадают.
   assert.ok(pkg.files.includes('bin/dsh-memory.js'))
   assert.ok(existsSync(join(rootDir, 'bin/dsh-memory.js')))
+})
+
+test('сбой вставки на существующем файле не удаляет источник и не метит чанки stale', (t) => {
+  const root = buildWorkspace(t)
+  const store = openTempStore(t)
+  indexWorkspace({ workspace: root, store, now: () => 1_000 })
+
+  const guide = join(root, 'docs/guide.md')
+  writeFileSync(guide, '# Руководство\n\n## Раздел\n\nОбновлённый текст после сбоя\n')
+  const future = new Date(Date.now() + 10_000)
+  utimesSync(guide, future, future)
+
+  const original = store.insertEntry
+  store.insertEntry = () => { throw new Error('boom') }
+  let summary
+  try {
+    summary = indexWorkspace({ workspace: root, store, now: () => 2_000 })
+  } finally {
+    store.insertEntry = original
+  }
+
+  assert.equal(summary.failed.length, 1)
+  assert.equal(summary.failed[0].path, 'docs/guide.md')
+  assert.deepEqual(summary.removed, [], 'существующий файл не должен попасть в removed')
+  assert.ok(store.getSource('docs/guide.md'), 'источник существующего файла удалён')
+  const statuses = store.database
+    .prepare("SELECT status FROM entries WHERE source_path = 'docs/guide.md'")
+    .all()
+    .map((row) => row.status)
+  assert.deepEqual(statuses, ['verified'], 'старые чанки не должны стать stale при откате')
+
+  // Сбой снят: следующий прогон переиндексирует файл.
+  const retry = indexWorkspace({ workspace: root, store, now: () => 3_000 })
+  assert.equal(retry.indexed, 1)
+  assert.equal(retry.failed.length, 0)
+  assert.deepEqual(retry.removed, [])
+  assert.ok(store.searchEntries('Обновлённый').length > 0)
 })
