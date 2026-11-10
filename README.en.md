@@ -224,7 +224,9 @@ first, then the main model (L3) runs directly.
 
 The MVP benchmark is one reproducible command: fixtures
 (`bench/fixtures/project`) and 20 questions (`bench/questions/questions.json`)
-ship with the package; no network, no current date.
+ship with the package; no network, no current date. The numbers are measured
+on that fixture (10 documents), not on a real project corpus: this is an
+acceptance test of the mechanism, not a promise of −44% on any project.
 
 ```bash
 dsh-memory bench --report docs/benchmark-mvp.md
