@@ -4,10 +4,11 @@
 
 **English version:** [README.en.md](README.en.md)
 
-> **Статус: фаза 0 закрыта.** Работают скелет плагина, хранилище SQLite, индексатор
-> с CLI `index` и модули `memory.*` (`search`/`write`/`verify`/`invalidate`/`stats`)
-> с TTL и метриками; e2e «`index` → `search` находит три определения» зелёный.
-> Инъекция top-k, каскад L2/L3 и бенчмарк — дальше по доске ([PLAN.md](PLAN.md)).
+> **Статус: MVP реализован.** Работают память (SQLite FTS5 + лексика: стеммер, trigram,
+> синонимы), инструменты `memory.*` с TTL и метриками, инъекция top-k, мягкий каскад
+> L1→L2→L3, верификация; бенчмарк на фикстуре и на реальном корпусе, векторы —
+> опциональный пакет `dsh-memory-embeddings`. Роутер L2→L3 и диспетчер сабмоделей —
+> дизайн-спайки ([PLAN.md](PLAN.md), `docs/router-design.md`, `docs/roles-design.md`).
 
 ## Проблема
 

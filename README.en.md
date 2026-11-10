@@ -4,12 +4,12 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: phase 0 complete.** The plugin skeleton, the SQLite store, the document
-> indexer with the `index` CLI and the `memory.*` modules
-> (`search`/`write`/`verify`/`invalidate`/`stats`) with TTL and metrics are
-> working; the "`index` → `search` finds three definitions" e2e is green.
-> Context injection, the L2/L3 cascade and the benchmark come next on the board
-> ([PLAN.md](PLAN.md)).
+> **Status: MVP implemented.** Memory (SQLite FTS5 + lexical: stemmer, trigram,
+> synonyms), the `memory.*` tools with TTL and metrics, top-k injection, the soft
+> L1→L2→L3 cascade and verification work; benchmarks run on a fixture and on the
+> real corpus; vectors are an optional `dsh-memory-embeddings` package. The L2→L3
+> router and the submodel dispatcher are design spikes ([PLAN.md](PLAN.md),
+> `docs/router-design.md`, `docs/roles-design.md`).
 
 ## Problem
 
