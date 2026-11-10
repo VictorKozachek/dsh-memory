@@ -46,7 +46,8 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
   files/chunks, skipped secrets), `dsh-memory index --dry-run`, and background
   auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
 - vectors are not part of the main package: an optional `dsh-memory-embeddings` package
-  (later) owns the provider or local model.
+  (later) owns the provider or local model; design, trust boundaries and 016 criteria
+  are in [docs/embeddings-design.md](docs/embeddings-design.md).
 
 ### First query
 
@@ -208,7 +209,7 @@ dsh-memory:
     include: ["**/*.md"]
     exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
     max_chunk_tokens: 800
-  embeddings: { enabled: false, model: "" }
+  embeddings: { enabled: false, model: "" }   # legacy field; providers live in dsh-memory-embeddings
   verify: { require_source_for_verified: true }
   cascade:
     enabled: false                                 # soft cascade L1 -> L2 (triage) -> L3
