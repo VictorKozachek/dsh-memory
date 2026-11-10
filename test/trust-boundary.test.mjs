@@ -25,14 +25,27 @@ const NETWORK_PATTERNS = [
   { name: 'node:dns', pattern: /(?:from|import)\s*['"]node:dns(?:\/promises)?['"]/u },
   { name: 'fetch()', pattern: /\bfetch\s*\(/u },
   { name: 'axios/undici/openai', pattern: /(?:from|import|require\()\s*['"](?:axios|undici|openai|node-fetch)['"]/u },
+  { name: 'dynamic import network', pattern: /import\s*\(\s*['"](?:node:https?|node:net|node:tls|axios|undici|openai|node-fetch)['"]/u },
+  { name: 'require network', pattern: /require\s*\(\s*['"](?:node:https?|node:net|node:tls|axios|undici|openai|node-fetch)['"]/u },
 ]
 
-test('в lib/ основного пакета нет сетевого кода', () => {
-  const lib = join(ROOT, 'lib')
-  for (const file of readdirSync(lib).filter((name) => name.endsWith('.js'))) {
-    const content = readFileSync(join(lib, file), 'utf8')
+/** Рекурсивно собрать .js-файлы в каталоге. */
+function listJs(directory) {
+  const files = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...listJs(path))
+    else if (entry.isFile() && entry.name.endsWith('.js')) files.push(path)
+  }
+  return files
+}
+
+test('в lib/** и bin/ основного пакета нет сетевого кода (включая динамические импорты)', () => {
+  for (const file of [...listJs(join(ROOT, 'lib')), ...listJs(join(ROOT, 'bin'))]) {
+    const content = readFileSync(file, 'utf8')
+    const label = file.slice(ROOT.length + 1)
     for (const { name, pattern } of NETWORK_PATTERNS) {
-      assert.doesNotMatch(content, pattern, `${file}: найден сетевой код (${name})`)
+      assert.doesNotMatch(content, pattern, `${label}: найден сетевой код (${name})`)
     }
   }
 })

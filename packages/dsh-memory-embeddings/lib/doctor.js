@@ -24,12 +24,12 @@ export function doctorReport(config, { provider = null } = {}) {
     return lines
   }
   lines.push({ level: 'info', message: `embeddings: включены (provider=${provider.kind}, model=${provider.model})` })
-  if (provider.kind === 'local') {
+  if (provider.kind === 'local' || provider.kind === 'local-onnx') {
     lines.push({ level: 'info', message: 'локальные эмбеддинги: сеть и ключи не используются' })
   } else if (provider.kind === 'ollama') {
-    lines.push({ level: 'warn', message: `ВНИМАНИЕ: запросы и тексты записей отправляются локальной Ollama (${provider.model}); при DSH_MEMORY_NO_NETWORK=1 канал отключается` })
+    lines.push({ level: 'warn', message: `запросы и тексты записей отправляются локальной Ollama (${provider.model}); при DSH_MEMORY_NO_NETWORK=1 канал отключается` })
   } else {
-    lines.push({ level: 'warn', message: `ВНИМАНИЕ: запросы и тексты записей будут отправлены провайдеру (${provider.kind}, model=${provider.model}); ключ берётся из env ${config.api_key_env} (значение не показывается)` })
+    lines.push({ level: 'warn', message: `запросы и тексты записей будут отправлены провайдеру (${provider.kind}, model=${provider.model}); ключ берётся из env ${config.api_key_env} (значение не показывается)` })
   }
   return lines
 }

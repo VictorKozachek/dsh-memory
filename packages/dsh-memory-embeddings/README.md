@@ -56,8 +56,9 @@ dsh-memory-embeddings:
 - `provider: local-onnx` — нейросетевая локальная модель через
   `@xenova/transformers` (опциональная зависимость) и **обязательный локальный
   `model_path`**; удалённая загрузка модели не поддерживается
-  (`allowRemoteModels=false`), при `DSH_MEMORY_NO_NETWORK=1` провайдер падает
-  до загрузки. Без зависимости/модели канал отключается, остаётся FTS5.
+  (`allowRemoteModels=false`): при `DSH_MEMORY_NO_NETWORK=1` локальный
+  `model_path` разрешён (сеть не нужна), а пустой/чужой путь даёт понятную
+  ошибку. Без зависимости/модели канал отключается, остаётся FTS5.
 - `provider: openai-compatible` — `POST {base_url}/embeddings`; ключ читается из
   `env[api_key_env]`, в БД/логи/ошибки не попадает; ошибки редактируются.
 - `provider: ollama` — локальный Ollama (`http://127.0.0.1:11434` по умолчанию).

@@ -10,7 +10,7 @@
  * @module dsh-memory-embeddings/providers/local-onnx
  */
 
-import { assertNetworkAllowed } from '../network.js'
+import { existsSync } from 'node:fs'
 
 /**
  * Создать локальный ONNX-провайдер.
@@ -21,9 +21,10 @@ import { assertNetworkAllowed } from '../network.js'
  * @param {number} [options.dim] — ожидаемая размерность (проверяется).
  * @param {Function} [options.embedder] — готовая функция `(texts) => Promise<Float32Array[]>`.
  * @param {Record<string, string | undefined>} [options.env] — окружение для NO_NETWORK.
+ * @param {object} [options.transformers] — уже загруженный модуль @xenova/transformers (тесты).
  * @returns {{ kind: 'local-onnx', model: string, dim: number, embed: Function }} провайдер.
  */
-export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', model_path = '', dim = 384, embedder, env = process.env } = {}) {
+export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', model_path = '', dim = 384, embedder, env = process.env, transformers } = {}) {
   let resolved = embedder
   const source = model_path || model
   return {
@@ -32,13 +33,18 @@ export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', mod
     dim,
     async embed(texts) {
       if (typeof resolved !== 'function') {
-        // Строгий режим запрещает любой egress, включая ленивую догрузку модели
-        // из сети: local-onnx обязан работать только с локальным артефактом.
-        assertNetworkAllowed(env)
+        // Офлайн-модель: строгий NO_NETWORK разрешён, если артефакт локальный —
+        // сеть для загрузки не нужна. Удалённая загрузка (пустой model_path)
+        // запрещена всегда: модель должна лежать на диске явно.
         if (model_path === '') {
           throw new Error('dsh-memory-embeddings: local-onnx требует model_path (локальный артефакт модели); удалённая загрузка модели не поддерживается')
         }
-        resolved = await loadTransformersEmbedder(source)
+        if (!existsSync(model_path)) {
+          throw new Error(`dsh-memory-embeddings: локальная модель не найдена: ${model_path}`)
+        }
+        // model_path локальный, а allowRemoteModels=false выставляется загрузчиком:
+        // egress не нужен, поэтому NO_NETWORK не запрещает этот режим.
+        resolved = await loadTransformersEmbedder(source, { transformers })
       }
       const vectors = await resolved(texts)
       if (!Array.isArray(vectors) || vectors.length !== texts.length) {
@@ -63,20 +69,23 @@ export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', mod
  * @param {string} source — путь/имя модели.
  * @returns {Promise<(texts: string[]) => Promise<Float32Array[]>>} embedder.
  */
-async function loadTransformersEmbedder(source) {
-  let transformers
-  try {
-    transformers = await import('@xenova/transformers')
-  } catch {
-    throw new Error('dsh-memory-embeddings: local-onnx требует @xenova/transformers и локальную модель; канал выключен, используется FTS5')
+async function loadTransformersEmbedder(source, { transformers } = {}) {
+  let module = transformers
+  if (module === undefined) {
+    try {
+      module = await import('@xenova/transformers')
+    } catch {
+      throw new Error('dsh-memory-embeddings: local-onnx требует @xenova/transformers и локальную модель; канал выключен, используется FTS5')
+    }
   }
-  const pipeline = transformers.pipeline ?? transformers.default?.pipeline
+  const pipelineModule = module
+  const pipeline = pipelineModule.pipeline ?? pipelineModule.default?.pipeline
   if (typeof pipeline !== 'function') {
     throw new Error('dsh-memory-embeddings: @xenova/transformers не экспортирует pipeline')
   }
   // Модель уже локальная: запрещаем @xenova ходить в сеть даже при разрешённом
   // egress, чтобы local-onnx оставался предсказуемо офлайновым.
-  if (transformers.env !== undefined) transformers.env.allowRemoteModels = false
+  if (pipelineModule.env !== undefined) pipelineModule.env.allowRemoteModels = false
   const extractor = await pipeline('feature-extraction', source)
   return async (texts) => {
     const output = await extractor(texts, { pooling: 'mean', normalize: true })
