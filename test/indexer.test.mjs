@@ -426,3 +426,40 @@ test('package.json публикует CLI-команду dsh-memory', () => {
   assert.ok(pkg.files.includes('bin/dsh-memory.js'))
   assert.ok(existsSync(join(rootDir, 'bin/dsh-memory.js')))
 })
+
+test('сбой вставки на существующем файле не удаляет источник и не метит чанки stale', (t) => {
+  const root = buildWorkspace(t)
+  const store = openTempStore(t)
+  indexWorkspace({ workspace: root, store, now: () => 1_000 })
+
+  const guide = join(root, 'docs/guide.md')
+  writeFileSync(guide, '# Руководство\n\n## Раздел\n\nОбновлённый текст после сбоя\n')
+  const future = new Date(Date.now() + 10_000)
+  utimesSync(guide, future, future)
+
+  const original = store.insertEntry
+  store.insertEntry = () => { throw new Error('boom') }
+  let summary
+  try {
+    summary = indexWorkspace({ workspace: root, store, now: () => 2_000 })
+  } finally {
+    store.insertEntry = original
+  }
+
+  assert.equal(summary.failed.length, 1)
+  assert.equal(summary.failed[0].path, 'docs/guide.md')
+  assert.deepEqual(summary.removed, [], 'существующий файл не должен попасть в removed')
+  assert.ok(store.getSource('docs/guide.md'), 'источник существующего файла удалён')
+  const statuses = store.database
+    .prepare("SELECT status FROM entries WHERE source_path = 'docs/guide.md'")
+    .all()
+    .map((row) => row.status)
+  assert.deepEqual(statuses, ['verified'], 'старые чанки не должны стать stale при откате')
+
+  // Сбой снят: следующий прогон переиндексирует файл.
+  const retry = indexWorkspace({ workspace: root, store, now: () => 3_000 })
+  assert.equal(retry.indexed, 1)
+  assert.equal(retry.failed.length, 0)
+  assert.deepEqual(retry.removed, [])
+  assert.ok(store.searchEntries('Обновлённый').length > 0)
+})

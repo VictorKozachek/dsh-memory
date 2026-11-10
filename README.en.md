@@ -124,7 +124,7 @@ then served to every future session *cheaper than it would have cost to verify*.
 | Provenance | every entry carries `source_path`, `source_ref`, author, timestamps |
 | Dedupe | `hash = sha256(kind\|title\|text)` is UNIQUE; a match raises confidence and merges sources |
 | Indexing | `.kanban/tasks/*.md` and `docs/adr/*` → `decision` (180-day TTL), component READMEs and other docs → `doc`; chunks are split by `##` |
-| Invalidation | source sha256 changed or file deleted → indexer chunks go `stale` (kept for audit, never served) |
+| Invalidation | source sha256 changed or file deleted → indexer chunks go `stale` (text kept in the DB for audit, never served); source removal is scoped to the namespace (`namespace: auto` = one namespace per workspace) |
 | TTL | `decision` 180 days, `fact` 60 days, `answer` 30 days |
 
 ## Tools

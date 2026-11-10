@@ -83,6 +83,8 @@ test('kindForPath: доска и ADR — decision, README — doc', () => {
   assert.equal(kindForPath('README.md'), 'doc')
   assert.equal(kindForPath('packages/memory/README.md'), 'doc')
   assert.equal(kindForPath('docs/adr/nested/notes.md'), 'doc')
+  assert.equal(kindForPath('.kanban/tasks/README.md'), 'doc')
+  assert.equal(kindForPath('docs/adr/README.md'), 'doc')
 })
 
 test('индексируются доска, ADR и README компонентов с правильными kind', (t) => {
