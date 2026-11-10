@@ -1,0 +1,22 @@
+[
+  { "id": "r01", "query": "Почему память проекта локальная и не требует сети и ключей?", "source": "README.md" },
+  { "id": "r02", "query": "Как устроен каскад L0 L1 L2 L3 и когда вызывается основная модель?", "source": "README.md" },
+  { "id": "r03", "query": "Сколько записей и токенов в инъекции памяти за ход?", "source": "README.md" },
+  { "id": "r04", "query": "Какие инструменты memory.search write verify invalidate stats предоставляет плагин?", "source": "README.md" },
+  { "id": "r05", "query": "Как запустить бенчмарк MVP и какие у него цели по hit-rate и экономии?", "source": "README.md" },
+  { "id": "r06", "query": "Как настраиваются namespace db_path и переменные DSH_MEMORY?", "source": "README.md" },
+  { "id": "r07", "query": "Какие границы безопасности и как отсеиваются секреты?", "source": "README.md" },
+  { "id": "r08", "query": "Какие роли в протоколе и что делает оркестратор?", "source": "AGENTS.md" },
+  { "id": "r09", "query": "Как проходит жизненный цикл задачи от todo до merged?", "source": "AGENTS.md" },
+  { "id": "r10", "query": "Какие правила про общие файлы и git push?", "source": "AGENTS.md" },
+  { "id": "r11", "query": "Какое правило памяти L1 и когда ставится verified?", "source": "AGENTS.md" },
+  { "id": "r12", "query": "Какие цели и критерии успеха MVP в плане?", "source": "PLAN.md" },
+  { "id": "r13", "query": "Какие фазы проекта и что входит в фазу 0?", "source": "PLAN.md" },
+  { "id": "r14", "query": "Какие риски проекта перечислены в плане?", "source": "PLAN.md" },
+  { "id": "r15", "query": "Какие критерии готовности у задачи 013 верификации записей?", "source": ".kanban/specs/001-mvp.md" },
+  { "id": "r16", "query": "Какие критерии инъекции top-k в задаче 010?", "source": ".kanban/specs/001-mvp.md" },
+  { "id": "r17", "query": "Какие критерии лексического поиска без векторов в задаче 020?", "source": ".kanban/specs/002-rag-ingest.md" },
+  { "id": "r18", "query": "Какой блокер был при миграции схемы v2 на v3 с лексическим индексом?", "source": ".kanban/tasks/020.md" },
+  { "id": "r19", "query": "Какая семантика экономии L1 L2 L3 и injected_tokens в задаче 011?", "source": ".kanban/tasks/011.md" },
+  { "id": "r20", "query": "Какие цели бенчмарка MVP и план проверки на реальном корпусе в задаче 022?", "source": ".kanban/tasks/022.md" }
+]

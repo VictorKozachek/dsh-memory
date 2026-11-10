@@ -246,6 +246,25 @@ not count as savings. Targets: hit-rate ≥ 20%, token savings ≥ 25%; the repo
 with numbers and the question table is [docs/benchmark-mvp.md](docs/benchmark-mvp.md).
 Exit code 0 means targets met, 1 means not met.
 
+### Real corpus
+
+A separate scenario asks 20 questions about the repository's own documents
+(README, AGENTS, PLAN, specs, task cards); `bench/` fixtures are excluded from
+the index so the benchmark cannot answer itself:
+
+```bash
+dsh-memory bench --workspace . --questions bench/questions/real.json \
+  --compare --with-fixture --report docs/benchmark-real.md
+```
+
+[docs/benchmark-real.md](docs/benchmark-real.md) contains exact numbers, misses,
+and comparisons with fixture 015 and plain `unicode61`. On the current corpus
+the lexical engine gets about 80% hit-rate and 76% savings (`unicode61`: about
+70% and 64%); the misses are broad semantic questions. Conclusion: lexical search is enough
+for exact terms, vectors are optional for the MVP (021/016). The benchmark
+always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
+affect `bench`.
+
 ## Metrics
 
 | Goal | Metric | MVP target |
