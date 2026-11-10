@@ -65,6 +65,13 @@ test('дефолты повторяют блок dsh-memory из README', () => 
   })
   assert.deepEqual(config.embeddings, { enabled: false, model: '' })
   assert.deepEqual(config.verify, { require_source_for_verified: true })
+  assert.deepEqual(config.cascade, {
+    enabled: false,
+    preset: 'triage',
+    model: '',
+    max_tokens: 300,
+    write_back: true,
+  })
 })
 
 test('отсутствующий конфиг — это дефолты без предупреждений', () => {
@@ -84,6 +91,7 @@ test('конфиг ряда накладывается поверх дефолт
     index: { include: ['docs/**/*.md', 'README.md'] },
     embeddings: { enabled: true, model: 'text-embedding-3-small' },
     verify: { require_source_for_verified: false },
+    cascade: { enabled: true, model: 'cheap-model', max_tokens: 200 },
   }, { env: {} })
 
   assert.deepEqual(warnings, [])
@@ -100,6 +108,13 @@ test('конфиг ряда накладывается поверх дефолт
   assert.equal(config.index.max_chunk_tokens, 800)
   assert.deepEqual(config.embeddings, { enabled: true, model: 'text-embedding-3-small' })
   assert.equal(config.verify.require_source_for_verified, false)
+  assert.deepEqual(config.cascade, {
+    enabled: true,
+    preset: 'triage',
+    model: 'cheap-model',
+    max_tokens: 200,
+    write_back: true,
+  })
 })
 
 test('невалидный конфиг не роняет разбор: дефолты и предупреждения', () => {
@@ -120,6 +135,7 @@ test('каждое невалидное поле заменяется дефол
     index: { include: 'README.md', exclude: [1], max_chunk_tokens: '800' },
     embeddings: 'off',
     verify: { require_source_for_verified: 'no' },
+    cascade: { enabled: 'yes', preset: 7, model: 42, max_tokens: 0, write_back: 'no' },
   }, { env: {} })
 
   assert.deepEqual(config, DEFAULT_CONFIG)
@@ -136,6 +152,11 @@ test('каждое невалидное поле заменяется дефол
     'index.max_chunk_tokens',
     'embeddings',
     'verify.require_source_for_verified',
+    'cascade.enabled',
+    'cascade.preset',
+    'cascade.model',
+    'cascade.max_tokens',
+    'cascade.write_back',
   ]) {
     assert.ok(warnings.some((warning) => warning.includes(field)), `нет предупреждения про ${field}: ${JSON.stringify(warnings)}`)
   }
