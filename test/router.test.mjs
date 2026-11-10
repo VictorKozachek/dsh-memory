@@ -195,3 +195,70 @@ test('конфиг роутера: порог/таймаут валидирую�
   })
   assert.deepEqual(resolveRouterConfig({ router: { confidence_threshold: 2, timeout_ms: 0 } }), ROUTER_DEFAULTS)
 })
+
+test('отмена во время L2 срабатывает сразу, даже если провайдер игнорирует signal', async (t) => {
+  const store = tempStore(t)
+  const controller = new AbortController()
+  const { calls, providers: p } = providers({
+    l2: () => new Promise(() => {}),
+    l3: () => ({ answer: 'L3', confidence: 1 }),
+  })
+  setTimeout(() => controller.abort(), 10)
+  const startedAt = Date.now()
+  await assert.rejects(
+    () => routeTurn({
+      query: 'вопрос',
+      providers: p,
+      store,
+      config: { router: { enabled: true, timeout_ms: 500 } },
+      signal: controller.signal,
+    }),
+    (error) => error.name === 'AbortError',
+  )
+  const elapsed = Date.now() - startedAt
+  assert.ok(elapsed < 200, `отмена заняла ${elapsed} мс (должна быть до таймаута)`)
+  assert.equal(calls.l3, 0, 'отменённый ход не должен уходить в L3')
+})
+
+test('route-событие приходит до первого токена L3 на всех путях', async (t) => {
+  const paths = [
+    {
+      name: 'disabled',
+      config: {},
+      providers: {
+        l3: ({ onToken }) => { onToken?.('x'); return { answer: 'x', confidence: 1 } },
+      },
+    },
+    {
+      name: 'L2 fallback',
+      config: { router: { enabled: true } },
+      providers: {
+        l2: () => ({ status: 'NO_ANSWER' }),
+        l3: ({ onToken }) => { onToken?.('x'); return { answer: 'x', confidence: 1 } },
+      },
+    },
+    {
+      name: 'L2 unavailable',
+      config: { router: { enabled: true } },
+      providers: {
+        l3: ({ onToken }) => { onToken?.('x'); return { answer: 'x', confidence: 1 } },
+      },
+    },
+  ]
+
+  for (const path of paths) {
+    const store = tempStore(t)
+    const events = []
+    await routeTurn({
+      query: 'вопрос',
+      providers: path.providers,
+      store,
+      config: path.config,
+      onEvent: (event) => events.push(event),
+    })
+    const routeIndex = events.findIndex((event) => event.type === 'route')
+    const tokenIndex = events.findIndex((event) => event.type === 'token')
+    assert.ok(routeIndex >= 0, `${path.name}: нет route-события`)
+    assert.ok(tokenIndex > routeIndex, `${path.name}: route должен быть раньше токена`)
+  }
+})
