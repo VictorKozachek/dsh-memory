@@ -343,3 +343,42 @@ test('standalone: висящий L3 даёт RouterTimeoutError, а не вых�
   assert.match(child.stdout, /ERR RouterTimeoutError/)
   assert.ok(child.signal === null, 'процесс не должен быть убит внешним timeout')
 })
+
+test('disabled-путь: AbortSignal доходит до L3 до и во время вызова', async (t) => {
+  const store = tempStore(t)
+  const before = new AbortController()
+  const l3Before = []
+  before.abort()
+  await assert.rejects(
+    () => routeTurn({
+      query: 'q',
+      providers: { l2: async () => { throw new Error('L2 must not be called') }, l3: async (input) => { l3Before.push(input.signal?.aborted); return { answer: 'x', confidence: 1 } } },
+      store,
+      config: { router: { enabled: false } },
+      signal: before.signal,
+    }),
+    (error) => error.name === 'AbortError',
+  )
+  assert.deepEqual(l3Before, [], 'отменённый disabled-ход не должен звать L3')
+
+  const controller = new AbortController()
+  let sawAbort = false
+  const l3 = (input) => new Promise((resolve, reject) => {
+    if (input.signal === undefined) return resolve({ answer: 'no signal', confidence: 1 })
+    input.signal.addEventListener('abort', () => { sawAbort = true; reject(Object.assign(new Error('aborted'), { name: 'AbortError' })) }, { once: true })
+  })
+  setTimeout(() => controller.abort(), 10)
+  const startedAt = Date.now()
+  await assert.rejects(
+    () => routeTurn({
+      query: 'q',
+      providers: { l3 },
+      store,
+      config: { router: { enabled: false, timeout_ms: 500 } },
+      signal: controller.signal,
+    }),
+    (error) => error.name === 'AbortError',
+  )
+  assert.equal(sawAbort, true, 'L3 должен увидеть отмену')
+  assert.ok(Date.now() - startedAt < 200, 'отмена disabled-пути должна быть prompt')
+})
