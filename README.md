@@ -207,6 +207,7 @@ dsh-memory:
     max_chunk_tokens: 800
   embeddings: { enabled: false, model: "" }   # legacy-поле; провайдеры — в dsh-memory-embeddings
   verify: { require_source_for_verified: true }
+  router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
   cascade:
     enabled: false                                 # мягкий каскад L1 → L2 (triage) → L3
     preset: triage                                 # presets/triage.json: дешёвая модель, ANSWER | NO_ANSWER
@@ -262,6 +263,15 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 лексики достаточно, векторы не обязательны для MVP и остаются опцией (021/016).
 Временная БД используется всегда, если не задан `--db-path`; `DSH_MEMORY_DB`
 на `bench` не влияет.
+
+## Жёсткий роутер L2→L3 (017)
+
+Экспериментальный `router` (по умолчанию выключен) маршрутизирует ход после L1:
+уверенная L2 (`confidence >= confidence_threshold`) обслуживает ход, иначе
+безусловно вызывается L3. Решение пишется в `metrics` как `route`; L2
+буферизуется, L3 стримится; отмена/таймауты — `AbortSignal` и `timeout_ms`.
+Дизайн, точка входа и ограничения — [docs/router-design.md](docs/router-design.md);
+флаг выключен — поведение прежнее (прямой L3).
 
 ## Эмбеддинги (опция)
 

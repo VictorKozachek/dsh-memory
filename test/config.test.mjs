@@ -72,6 +72,7 @@ test('дефолты повторяют блок dsh-memory из README', () => 
     max_tokens: 300,
     write_back: true,
   })
+  assert.deepEqual(config.router, { enabled: false, confidence_threshold: 0.6, timeout_ms: 5_000 })
 })
 
 test('отсутствующий конфиг — это дефолты без предупреждений', () => {
@@ -92,6 +93,7 @@ test('конфиг ряда накладывается поверх дефолт
     embeddings: { enabled: true, model: 'text-embedding-3-small' },
     verify: { require_source_for_verified: false },
     cascade: { enabled: true, model: 'cheap-model', max_tokens: 200 },
+    router: { enabled: true, confidence_threshold: 0.8, timeout_ms: 250 },
   }, { env: {} })
 
   assert.deepEqual(warnings, [])
@@ -115,6 +117,7 @@ test('конфиг ряда накладывается поверх дефолт
     max_tokens: 200,
     write_back: true,
   })
+  assert.deepEqual(config.router, { enabled: true, confidence_threshold: 0.8, timeout_ms: 250 })
 })
 
 test('невалидный конфиг не роняет разбор: дефолты и предупреждения', () => {
@@ -136,6 +139,7 @@ test('каждое невалидное поле заменяется дефол
     embeddings: 'off',
     verify: { require_source_for_verified: 'no' },
     cascade: { enabled: 'yes', preset: 7, model: 42, max_tokens: 0, write_back: 'no' },
+    router: { enabled: 'yes', confidence_threshold: 2, timeout_ms: 0 },
   }, { env: {} })
 
   assert.deepEqual(config, DEFAULT_CONFIG)
@@ -158,6 +162,9 @@ test('каждое невалидное поле заменяется дефол
     'cascade.model',
     'cascade.max_tokens',
     'cascade.write_back',
+    'router.enabled',
+    'router.confidence_threshold',
+    'router.timeout_ms',
   ]) {
     assert.ok(warnings.some((warning) => warning.includes(field)), `нет предупреждения про ${field}: ${JSON.stringify(warnings)}`)
   }
