@@ -207,7 +207,10 @@ The `triage` preset is a cascade descriptor (`presets/triage.json`: cheap model,
 `ANSWER | NO_ANSWER` contract, `max_tokens`), not a DSH agent preset: routing is
 owned by `lib/cascade.js` and enabled by the `cascade` section above. After an
 L2/L3 answer the cascade writes a distilled entry back to memory as a `draft`
-with a source (`write_back`).
+with a source (`write_back`). When the provider supplies no sources, the entry
+gets the synthetic `source_ref` `cascade:L2`/`cascade:L3`. `cascade.enabled:
+false` is the supported "no cheap model" mode: memory (L1) is still searched
+first, then the main model (L3) runs directly.
 
 ## Metrics
 

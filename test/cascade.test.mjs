@@ -263,3 +263,66 @@ test('write_back: false отключает запись ответа в памя
   assert.equal(result.entryId, null)
   assert.equal(store.countEntries(), 0)
 })
+
+test('строковый NO_ANSWER: эскалация на L3, в память пишется только ответ L3', async (t) => {
+  const store = tempStore(t)
+  const calls = []
+  const providers = {
+    l2: () => { calls.push('l2'); return 'NO_ANSWER' },
+    l3: () => { calls.push('l3'); return 'ответ основной модели' },
+  }
+
+  const result = await runCascade({ store, query: 'вопрос', providers, config: { cascade: { enabled: true } }, now: () => NOW })
+  assert.equal(result.layer, 'L3')
+  assert.deepEqual(calls, ['l2', 'l3'])
+  assert.equal(result.answer, 'ответ основной модели')
+  assert.equal(store.countEntries(), 1)
+  assert.equal(store.getEntry(result.entryId).text, 'ответ основной модели')
+  assert.equal(store.getEntry(result.entryId).source_ref, 'cascade:L3')
+  const [route] = store.listMetrics({ event: 'route' })
+  assert.equal(route.payload.layer, 'L3')
+})
+
+test('контракт в строках: регистр, причина и префикс ANSWER', async (t) => {
+  const store = tempStore(t)
+  const cases = [
+    { l2: ' no_answer ', layer: 'L3' },
+    { l2: 'NO_ANSWER: не уверен', layer: 'L3' },
+    { l2: 'no_answer — нет данных', layer: 'L3' },
+    { l2: 'ANSWER', layer: 'L3' },
+    { l2: 'ANSWER: короткий ответ', layer: 'L2', answer: 'короткий ответ' },
+    { l2: 'answer — с дефисом', layer: 'L2', answer: 'с дефисом' },
+    { l2: 'обычный текстовый ответ', layer: 'L2', answer: 'обычный текстовый ответ' },
+  ]
+
+  for (const item of cases) {
+    const calls = []
+    const providers = {
+      l2: () => { calls.push('l2'); return item.l2 },
+      l3: () => { calls.push('l3'); return 'ответ L3' },
+    }
+    const result = await runCascade({ store, query: `вопрос ${item.l2}`, providers, config: { cascade: { enabled: true } }, now: () => NOW })
+    assert.equal(result.layer, item.layer, `для ${JSON.stringify(item.l2)}`)
+    if (item.answer !== undefined) {
+      assert.equal(result.answer, item.answer)
+      assert.deepEqual(calls, ['l2'])
+    } else {
+      assert.deepEqual(calls, ['l2', 'l3'])
+      assert.equal(store.getEntry(result.entryId).text, 'ответ L3')
+    }
+  }
+})
+
+test('объектный ответ со строкой NO_ANSWER в answer — тоже отказ', async (t) => {
+  const store = tempStore(t)
+  const calls = []
+  const providers = {
+    l2: () => ({ status: 'ANSWER', answer: 'NO_ANSWER' }),
+    l3: () => { calls.push('l3'); return 'ответ L3' },
+  }
+
+  const result = await runCascade({ store, query: 'вопрос', providers, config: { cascade: { enabled: true } }, now: () => NOW })
+  assert.equal(result.layer, 'L3')
+  assert.deepEqual(calls, ['l3'])
+  assert.equal(store.getEntry(result.entryId).text, 'ответ L3')
+})
