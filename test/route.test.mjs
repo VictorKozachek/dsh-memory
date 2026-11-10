@@ -36,11 +36,11 @@ function routeEvents(store) {
   return store.listMetrics({ event: 'route' })
 }
 
-test('recordRouteMetric пишет layer/reason/tokens_saved_estimate в metrics', (t) => {
+test('recordRouteMetric пишет layer/reason/savings/injected в metrics', (t) => {
   const store = tempStore(t)
-  const payload = recordRouteMetric(store, { layer: 'L1', reason: 'memory hit', tokensSavedEstimate: 500 })
+  const payload = recordRouteMetric(store, { layer: 'L2', reason: 'memory hit', tokensSavedEstimate: 500 })
 
-  assert.deepEqual(payload, { layer: 'L1', reason: 'memory hit', tokens_saved_estimate: 500 })
+  assert.deepEqual(payload, { layer: 'L2', reason: 'memory hit', tokens_saved_estimate: 500, injected_tokens: 0 })
   const [metric] = routeEvents(store)
   assert.equal(metric.event, 'route')
   assert.equal(metric.ts, NOW)
@@ -55,6 +55,7 @@ test('recordRouteMetric валидирует решение каскада', (t)
   assert.throws(() => recordRouteMetric(store, { layer: 'L2', reason: '   ', tokensSavedEstimate: 1 }), /reason/)
   assert.throws(() => recordRouteMetric(store, { layer: 'L2', reason: 'x', tokensSavedEstimate: -1 }), /tokens_saved_estimate/)
   assert.throws(() => recordRouteMetric(store, { layer: 'L2', reason: 'x', tokensSavedEstimate: 'много' }), /tokens_saved_estimate/)
+  assert.throws(() => recordRouteMetric(store, { layer: 'L1', reason: 'x', tokensSavedEstimate: 0, injectedTokens: -1 }), /injected_tokens/)
   assert.equal(routeEvents(store).length, 0)
 })
 
@@ -69,23 +70,23 @@ test('без token-meter: оценка локальная, публикация 
   assert.equal(result.layer, 'L2')
   assert.equal(result.tokens_saved_estimate, estimateTokens(text))
   assert.equal(result.published, false)
+  assert.equal(result.injected_tokens, 0)
   assert.deepEqual(routeEvents(store).map((metric) => metric.payload), [{
     layer: 'L2',
     reason: 'cheap answer',
     tokens_saved_estimate: estimateTokens(text),
+    injected_tokens: 0,
   }])
 })
 
-test('реальная форма token-meter (только estimateMessage): оценка есть, публикация no-op', (t) => {
+test('реальная форма token-meter (только estimateMessage): L1 — расход, публикации нет', (t) => {
   const store = tempStore(t)
   // У настоящего ctx.tokenMeter есть только measure()/estimateMessage(); publish
   // и record у него отсутствуют, поэтому тест не подсовывает несуществующий API.
   const tokenMeter = {
     estimateMessage: (message) => {
-      assert.equal(message.role, 'user')
+      // Решение диспетчера: duck-typed Message, сервис читает только content.
       assert.equal(message.content[0].type, 'text')
-      assert.equal(message.source.kind, 'plugin')
-      assert.equal(typeof message.id, 'string')
       return 42
     },
   }
@@ -93,9 +94,21 @@ test('реальная форма token-meter (только estimateMessage): о
 
   assert.equal(reporter.available, true)
   const result = reporter.record({ layer: 'L1', reason: 'injection hit', text: 'память проекта' })
-  assert.equal(result.tokens_saved_estimate, 42)
+  assert.equal(result.tokens_saved_estimate, 0, 'L1-инъекция — расход, а не экономия')
+  assert.equal(result.injected_tokens, 42)
   assert.equal(result.published, false, 'у token-meter нет канала публикации — метрика остаётся в metrics')
-  assert.equal(routeEvents(store)[0].payload.tokens_saved_estimate, 42)
+  assert.equal(routeEvents(store)[0].payload.tokens_saved_estimate, 0)
+  assert.equal(routeEvents(store)[0].payload.injected_tokens, 42)
+})
+
+test('L2 вместо L3: route пишет экономию, без расхода на инъекцию', (t) => {
+  const store = tempStore(t)
+  const reporter = createRouteReporter(store, { tokenMeter: { estimateMessage: () => 500 } })
+
+  const result = reporter.record({ layer: 'L2', reason: 'cheap answer', text: 'ответ сабмодели' })
+  assert.equal(result.tokens_saved_estimate, 500)
+  assert.equal(result.injected_tokens, 0)
+  assert.equal(result.published, false)
 })
 
 test('ошибки token-meter не ломают запись route', (t) => {
@@ -129,21 +142,24 @@ test('optionalTokenMeter: ctx.get / свойство / отсутствие / и
   assert.equal(optionalTokenMeter({ get: () => { throw new Error('boom') } }), undefined)
 })
 
-test('stats: route-события авторитетнее search, hit_rate считается по search', (t) => {
+test('stats: L1 — расход, savings только L2/L3, hit_rate по search', (t) => {
   const store = tempStore(t)
   recordSearchMetric(store, { query: 'память', hits: 1, latencyMs: 1, tokensSaved: 100, injected: true })
   recordSearchMetric(store, { query: 'зебра', hits: 0, latencyMs: 1 })
 
   const before = memoryStats(store)
   assert.equal(before.hit_rate, 0.5)
-  assert.equal(before.tokens_saved_estimate, 100)
+  assert.equal(before.tokens_saved_estimate, 0, 'L1/search-инъекции не считаются экономией в MVP')
+  assert.equal(before.injected_tokens, 0)
 
-  recordRouteMetric(store, { layer: 'L1', reason: 'memory hit', tokensSavedEstimate: 500 })
-  recordRouteMetric(store, { layer: 'L2', reason: 'cheap answer', tokensSavedEstimate: 300 })
+  recordRouteMetric(store, { layer: 'L1', reason: 'memory injection', tokensSavedEstimate: 0, injectedTokens: 300 })
+  recordRouteMetric(store, { layer: 'L2', reason: 'cheap answer', tokensSavedEstimate: 500 })
+  recordRouteMetric(store, { layer: 'L3', reason: 'escalation', tokensSavedEstimate: 0 })
 
   const after = memoryStats(store)
   assert.equal(after.hit_rate, 0.5)
-  assert.equal(after.tokens_saved_estimate, 800, 'при наличии route-событий сумма берётся по ним')
+  assert.equal(after.injected_tokens, 300, 'суммарный расход на инъекции памяти')
+  assert.equal(after.tokens_saved_estimate, 500, 'экономия — только L2 вместо L3')
 })
 
 test('stats не падает на битом route-событии', (t) => {
@@ -152,5 +168,6 @@ test('stats не падает на битом route-событии', (t) => {
 
   const stats = memoryStats(store)
   assert.equal(stats.tokens_saved_estimate, 0)
+  assert.equal(stats.injected_tokens, 0)
   assert.equal(stats.hit_rate, 0)
 })

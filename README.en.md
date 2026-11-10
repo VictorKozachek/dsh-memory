@@ -121,7 +121,7 @@ then served to every future session *cheaper than it would have cost to verify*.
 | `memory.write` | store distilled knowledge | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
 | `memory.invalidate` | mark dependent entries stale | `{ path?, ref? }` → `{ affected }` |
 | `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, tokens_saved_estimate }` |
+| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate }` |
 
 `memory.search` returns `verified` entries by default; `status: "all"` adds
 `draft` entries marked by status, and snippets are truncated to 300 characters —
@@ -201,6 +201,14 @@ dsh-memory:
 | No unsourced facts | verified records without a source | 0 |
 | Invisible overhead | added latency to first token | ≤ 50 ms |
 | Injection stays small | injected block size | ≤ 600 tokens |
+
+`memory.stats` semantics: `injected_tokens` is the cost of memory injections
+(every turn appends another snapshot block to the history, so the cost
+accumulates); `tokens_saved_estimate` is savings only where a turn is served by
+L2 instead of L3, and stays 0 in the MVP until benchmark 015 calibrates it.
+`dsh-token-meter`, when available, is used as the authoritative token estimator
+(`estimateMessage`); it exposes no metric-publishing channel, so metrics live in
+the plugin's own `metrics` table.
 
 ## Scope and security
 

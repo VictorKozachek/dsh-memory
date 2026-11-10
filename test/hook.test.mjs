@@ -230,11 +230,16 @@ test('добавка хука к ходу ≤ 50 мс после разогре�
     step: 1,
     signal: { aborted: false },
   }
+  // Разогрев, затем лучшее из трёх измерений: полный прогон node --test идёт
+  // параллельно другими файлами, и одиночный замер ловит чужую нагрузку.
   await runHook(listener, payload)
-  const startedAt = performance.now()
-  await runHook(listener, payload)
-  const duration = performance.now() - startedAt
-  assert.ok(duration <= 50, `хук добавил ${duration} мс`)
+  let best = Number.POSITIVE_INFINITY
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const startedAt = performance.now()
+    await runHook(listener, payload)
+    best = Math.min(best, performance.now() - startedAt)
+  }
+  assert.ok(best <= 50, `хук добавил ${best} мс`)
 })
 
 test('createPluginMessage: форма сообщения, заморозка и уникальный id', () => {
@@ -265,8 +270,8 @@ test('lastUserMessageFromSession берёт последнее human-сообщ�
   assert.equal(lastUserMessageFromSession({}), '')
 })
 
-test('успешная инъекция пишет route L1; token-meter даёт оценку (публикации нет)', async (t) => {
-  // Без token-meter: route L1 с локальной оценкой.
+test('успешная инъекция пишет route L1 как расход (injected_tokens), не экономию', async (t) => {
+  // Без token-meter: route L1 с локальной оценкой расхода.
   const plain = setupHook(t)
   await runHook(plain.listener, {
     agent: mockAgent({ cwd: plain.dbDir }),
@@ -280,10 +285,11 @@ test('успешная инъекция пишет route L1; token-meter даё�
   plainStore.close()
   assert.equal(plainRoutes.length, 1)
   assert.equal(plainRoutes[0].payload.layer, 'L1')
-  assert.ok(plainRoutes[0].payload.tokens_saved_estimate > 0)
+  assert.equal(plainRoutes[0].payload.tokens_saved_estimate, 0, 'L1-инъекция — расход, а не экономия')
+  assert.ok(plainRoutes[0].payload.injected_tokens > 0)
 
   // С реальной формой token-meter (только estimateMessage): его оценка
-  // попадает в route-событие; канала публикации у сервиса нет.
+  // попадает в injected_tokens; канала публикации у сервиса нет.
   const withMeter = setupHook(t, { tokenMeter: { estimateMessage: () => 123 } })
   await runHook(withMeter.listener, {
     agent: mockAgent({ cwd: withMeter.dbDir }),
@@ -295,5 +301,6 @@ test('успешная инъекция пишет route L1; token-meter даё�
   const meterStore = openStore({ dbPath: withMeter.dbDir, namespace: withMeter.namespace })
   const [meterRoute] = meterStore.listMetrics({ event: 'route' })
   meterStore.close()
-  assert.equal(meterRoute.payload.tokens_saved_estimate, 123)
+  assert.equal(meterRoute.payload.tokens_saved_estimate, 0)
+  assert.equal(meterRoute.payload.injected_tokens, 123)
 })

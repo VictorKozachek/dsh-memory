@@ -69,11 +69,13 @@ test('e2e фазы 0: CLI index строит индекс, memory.search нах�
   }
 
   // События search записались, статистика посчиталась на живом индексе.
+  // Семантика 011: L1-поиск/инъекция — расход, а не экономия; savings в MVP
+  // остаются 0 до калибровки L2↔L3 (012/015).
   const stats = memoryStats(store)
   assert.ok(stats.entries >= summary.chunks)
   assert.ok(stats.by_status.verified >= summary.chunks)
   assert.ok(stats.hit_rate > 0, 'hit_rate должен быть больше нуля после успешных поисков')
-  assert.ok(stats.tokens_saved_estimate > 0, 'оценка сэкономленных токенов должна быть > 0')
+  assert.equal(stats.tokens_saved_estimate, 0, 'L1-поиск не формирует savings')
 })
 
 test('e2e фазы 0: повторный index не переиндексирует неизменённые файлы', (t) => {

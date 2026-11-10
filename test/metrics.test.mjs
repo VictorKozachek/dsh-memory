@@ -129,6 +129,7 @@ test('stats на пустой базе — нули, без NaN и исключ�
     entries: 0,
     by_status: { draft: 0, verified: 0, stale: 0 },
     hit_rate: 0,
+    injected_tokens: 0,
     tokens_saved_estimate: 0,
   })
 })
@@ -161,7 +162,9 @@ test('hit_rate считается по событиям search и округля
 
   const stats = memoryStats(store)
   assert.equal(stats.hit_rate, 0.667)
-  assert.equal(stats.tokens_saved_estimate, 150)
+  // L1/search-инъекции — расход, а не экономия (решение диспетчера по 011).
+  assert.equal(stats.tokens_saved_estimate, 0)
+  assert.equal(stats.injected_tokens, 0)
   assert.equal(stats.entries, 0)
 })
 
@@ -174,8 +177,8 @@ test('stats не падает на битых и старых событиях',
 
   const stats = memoryStats(store)
   assert.equal(stats.hit_rate, 0.333)
-  // Старое событие с hits > 0 без tokens_saved: грубая оценка 100 на попадание.
-  assert.equal(stats.tokens_saved_estimate, 100)
+  assert.equal(stats.tokens_saved_estimate, 0)
+  assert.equal(stats.injected_tokens, 0)
 })
 
 test('METRIC_EVENTS перечисляет события памяти', () => {
