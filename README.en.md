@@ -220,6 +220,23 @@ gets the synthetic `source_ref` `cascade:L2`/`cascade:L3`. `cascade.enabled:
 false` is the supported "no cheap model" mode: memory (L1) is still searched
 first, then the main model (L3) runs directly.
 
+## Benchmark
+
+The MVP benchmark is one reproducible command: fixtures
+(`bench/fixtures/project`) and 20 questions (`bench/questions/questions.json`)
+ship with the package; no network, no current date.
+
+```bash
+dsh-memory bench --report docs/benchmark-mvp.md
+```
+
+"Before" is the full text of the answer source; "after" is the L1 injection
+(top-k snippets, 600-token budget) plus the source on a miss. A hit counts as
+relevant only when `source_path` matches, so weak `matchMode: any` matches do
+not count as savings. Targets: hit-rate ≥ 20%, token savings ≥ 25%; the report
+with numbers and the question table is [docs/benchmark-mvp.md](docs/benchmark-mvp.md).
+Exit code 0 means targets met, 1 means not met.
+
 ## Metrics
 
 | Goal | Metric | MVP target |
