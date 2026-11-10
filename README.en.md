@@ -211,6 +211,7 @@ dsh-memory:
     max_chunk_tokens: 800
   embeddings: { enabled: false, model: "" }   # legacy field; providers live in dsh-memory-embeddings
   verify: { require_source_for_verified: true }
+  router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
   cascade:
     enabled: false                                 # soft cascade L1 -> L2 (triage) -> L3
     preset: triage                                 # presets/triage.json: cheap model, ANSWER | NO_ANSWER
@@ -265,6 +266,16 @@ the lexical engine gets about 80% hit-rate and 77% savings (`unicode61`: about
 for exact terms, vectors are optional for the MVP (021/016). The benchmark
 always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
 affect `bench`.
+
+## Hard L2→L3 router (017)
+
+The experimental `router` flag (off by default) routes a turn after L1: a
+confident L2 (`confidence >= confidence_threshold`) serves the turn, otherwise
+L3 is called unconditionally. The decision is recorded in `metrics` as `route`;
+L2 is buffered, L3 streams; cancellation/timeouts use `AbortSignal` and
+`timeout_ms`. Design, entry point and limits:
+[docs/router-design.md](docs/router-design.md); with the flag off behaviour is
+unchanged (direct L3).
 
 ## Embeddings (optional)
 
