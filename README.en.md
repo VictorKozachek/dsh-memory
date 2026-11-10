@@ -97,7 +97,9 @@ status, confidence, score }]` — the full document text never leaves the store.
 
 **Cascade rule.** Before any model answer, search memory (`memory.search`, L1).
 On a miss, use the `triage` preset (L2: cheap `deepseek-v4-flash` model,
-`ANSWER | NO_ANSWER` contract). On `NO_ANSWER`, call the main model (L3). An L2/L3
+`ANSWER | NO_ANSWER` contract; markers are recognized with trailing punctuation,
+so `NO_ANSWER.` is a refusal, not an answer). On `NO_ANSWER`, call the main
+model (L3). An L2/L3
 answer is distilled back into memory as a `draft` with a source (write-back);
 `verified` is set only by confirmation (006/013).
 

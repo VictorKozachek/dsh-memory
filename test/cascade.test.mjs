@@ -290,8 +290,16 @@ test('контракт в строках: регистр, причина и пр
     { l2: 'NO_ANSWER: не уверен', layer: 'L3' },
     { l2: 'no_answer — нет данных', layer: 'L3' },
     { l2: 'ANSWER', layer: 'L3' },
+    { l2: 'NO_ANSWER.', layer: 'L3' },
+    { l2: 'no_answer!', layer: 'L3' },
+    { l2: 'NO_ANSWER,', layer: 'L3' },
+    { l2: 'NO_ANSWER — причина.', layer: 'L3' },
+    { l2: 'ANSWER.', layer: 'L3' },
+    { l2: 'ANSWER!', layer: 'L3' },
+    { l2: 'ANSWER: .', layer: 'L3' },
     { l2: 'ANSWER: короткий ответ', layer: 'L2', answer: 'короткий ответ' },
     { l2: 'answer — с дефисом', layer: 'L2', answer: 'с дефисом' },
+    { l2: 'ANSWER: ответ с точкой.', layer: 'L2', answer: 'ответ с точкой.' },
     { l2: 'обычный текстовый ответ', layer: 'L2', answer: 'обычный текстовый ответ' },
   ]
 
@@ -313,16 +321,24 @@ test('контракт в строках: регистр, причина и пр
   }
 })
 
-test('объектный ответ со строкой NO_ANSWER в answer — тоже отказ', async (t) => {
+test('объектный ответ со строкой NO_ANSWER/ANSWER-пунктуацией в answer — отказ', async (t) => {
   const store = tempStore(t)
-  const calls = []
-  const providers = {
-    l2: () => ({ status: 'ANSWER', answer: 'NO_ANSWER' }),
-    l3: () => { calls.push('l3'); return 'ответ L3' },
-  }
+  for (const reply of [
+    { status: 'ANSWER', answer: 'NO_ANSWER' },
+    { status: 'ANSWER', answer: 'NO_ANSWER.' },
+    { answer: 'no_answer!' },
+    { answer: 'ANSWER.' },
+    { answer: ' ANSWER! ' },
+  ]) {
+    const calls = []
+    const providers = {
+      l2: () => reply,
+      l3: () => { calls.push('l3'); return 'ответ L3' },
+    }
 
-  const result = await runCascade({ store, query: 'вопрос', providers, config: { cascade: { enabled: true } }, now: () => NOW })
-  assert.equal(result.layer, 'L3')
-  assert.deepEqual(calls, ['l3'])
-  assert.equal(store.getEntry(result.entryId).text, 'ответ L3')
+    const result = await runCascade({ store, query: 'вопрос', providers, config: { cascade: { enabled: true } }, now: () => NOW })
+    assert.equal(result.layer, 'L3', `для ${JSON.stringify(reply)}`)
+    assert.deepEqual(calls, ['l3'])
+    assert.equal(store.getEntry(result.entryId).text, 'ответ L3')
+  }
 })
