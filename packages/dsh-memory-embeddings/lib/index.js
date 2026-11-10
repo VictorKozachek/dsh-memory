@@ -12,11 +12,11 @@
  * @module dsh-memory-embeddings
  */
 
-import { backfillEmbeddings } from './backfill.js'
-import { createLocalChannel } from './channel.js'
+import { createAsyncChannel, createLocalChannel } from './channel.js'
 import { resolveConfig } from './config.js'
 import { doctorReport } from './doctor.js'
 import { createLocalProvider } from './providers/local.js'
+import { createLocalOnnxProvider } from './providers/local-onnx.js'
 import { createOllamaProvider } from './providers/ollama.js'
 import { createOpenAiProvider } from './providers/openai.js'
 
@@ -26,10 +26,11 @@ export const name = 'dsh-memory-embeddings'
 export const inject = ['memory']
 
 export { backfillEmbeddings } from './backfill.js'
-export { cosineSimilarity, createLocalChannel } from './channel.js'
+export { cosineSimilarity, createAsyncChannel, createLocalChannel } from './channel.js'
 export { DEFAULT_CONFIG, PROVIDERS, resolveConfig } from './config.js'
 export { doctorReport } from './doctor.js'
 export { embedLocal, createLocalProvider } from './providers/local.js'
+export { createLocalOnnxProvider } from './providers/local-onnx.js'
 export { createOllamaProvider } from './providers/ollama.js'
 export { createOpenAiProvider, redact } from './providers/openai.js'
 
@@ -48,6 +49,8 @@ export function createProvider(config, { env = process.env, fetchImpl } = {}) {
   switch (config.provider) {
     case 'local':
       return createLocalProvider({ model: config.model })
+    case 'local-onnx':
+      return createLocalOnnxProvider({ model: config.model, model_path: config.model_path })
     case 'ollama':
       return createOllamaProvider({
         base_url: config.base_url || undefined,
@@ -90,8 +93,8 @@ export function apply(ctx, config = {}) {
   }
 
   const memory = ctx?.memory ?? ctx?.get?.('memory', false)
-  if (!memory || typeof memory.storeFor !== 'function' || typeof memory.registerSearchChannel !== 'function') {
-    log(ctx, 'warn', 'embeddings: нет сервиса memory с storeFor/registerSearchChannel — используется FTS5')
+  if (!memory || typeof memory.registerSearchChannel !== 'function') {
+    log(ctx, 'warn', 'embeddings: нет сервиса memory с registerSearchChannel — используется FTS5')
     return
   }
 
@@ -105,43 +108,24 @@ export function apply(ctx, config = {}) {
 
   for (const line of doctorReport(options, { provider })) log(ctx, line.level, line.message)
 
-  let store
   try {
-    store = memory.storeFor(process.cwd())
-  } catch (error) {
-    log(ctx, 'warn', `embeddings: хранилище не открыто (${error instanceof Error ? error.message : String(error)}); используется FTS5`)
-    return
-  }
-
-  if (provider.kind === 'local') {
-    try {
-      const off = memory.registerSearchChannel(createLocalChannel({
-        store,
+    // Канал получает store из каждого вызова memory.search — не замыкаем
+    // воркспейс/namespace на момент загрузки плагина.
+    const channel = provider.kind === 'local'
+      ? createLocalChannel({ provider, model: provider.model, weight: options.hybrid_weight })
+      : createAsyncChannel({
         provider,
         model: provider.model,
         weight: options.hybrid_weight,
-      }))
-      if (typeof ctx?.effect === 'function') ctx.effect(() => off)
-    } catch (error) {
-      log(ctx, 'warn', `embeddings: канал не зарегистрирован (${error instanceof Error ? error.message : String(error)}); используется FTS5`)
-    }
-  } else {
-    // API/Ollama отвечают асинхронно; синхронный канал поиска в спайке 016
-    // зарегистрирован только для локального провайдера. Векторы при этом
-    // досчитываются — гибридный async-путь зафиксирован как следующий шаг.
-    log(ctx, 'info', 'embeddings: провайдер асинхронный — векторы досчитываются, гибридный query-канал в этой версии только для local')
+        batch_size: options.batch_size,
+        log: (level, message) => log(ctx, level, message),
+      })
+    const off = memory.registerSearchChannel(channel)
+    if (typeof ctx?.effect === 'function') ctx.effect(() => off)
+  } catch (error) {
+    log(ctx, 'warn', `embeddings: канал не зарегистрирован (${error instanceof Error ? error.message : String(error)}); используется FTS5`)
   }
-
-  // Фоновый бэкфилл; ошибки не ломают загрузку профиля.
-  void backfillEmbeddings({
-    store,
-    provider,
-    model: provider.model,
-    batch_size: options.batch_size,
-    log: (level, message) => log(ctx, level, message),
-  }).catch((error) => log(ctx, 'warn', `embeddings: бэкфилл прерван (${error instanceof Error ? error.message : String(error)})`))
 }
-
 /** Записать в лог, если он есть; диагностика не роняет плагин. */
 function log(ctx, level, message) {
   try {

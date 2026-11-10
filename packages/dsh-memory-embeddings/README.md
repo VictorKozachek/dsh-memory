@@ -17,9 +17,10 @@ FTS5.
 ```yaml
 dsh-memory-embeddings:
   enabled: false
-  provider: ""                 # local | ollama | openai-compatible
+  provider: ""                 # local | local-onnx | ollama | openai-compatible
   base_url: ""
   model: ""
+  model_path: ""               # для local-onnx
   api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY
   batch_size: 32
   timeout_ms: 5000
@@ -52,6 +53,10 @@ dsh-memory-embeddings:
   используются; это baseline, а не нейросетевая модель (ONNX/Ollama — отдельные
   провайдеры/открытый вопрос 021). Векторы лежат в SQLite BLOB, косинус —
   brute-force.
+- `provider: local-onnx` — нейросетевая локальная модель через
+  `@xenova/transformers` (опциональная зависимость) и локальный артефакт
+  модели; без зависимости/модели канал отключается и остаётся FTS5. Сеть не
+  нужна, если модель уже на диске.
 - `provider: openai-compatible` — `POST {base_url}/embeddings`; ключ читается из
   `env[api_key_env]`, в БД/логи/ошибки не попадает; ошибки редактируются.
 - `provider: ollama` — локальный Ollama (`http://127.0.0.1:11434` по умолчанию).
@@ -70,14 +75,28 @@ dsh-memory-embeddings:
 
 ## Ограничения этой версии
 
-- Синхронный канал поиска зарегистрирован для локального провайдера; для
-  API/Ollama в этой версии работает фоновый досчёт векторов, async query-канал —
-  следующий шаг (дизайн 021).
-- Живого события `memory/entries-changed` пока нет: локальный канал лениво
-  досчитывает векторы, API/Ollama — бэкфилл при загрузке.
-- Нейросетевая локальная модель (ONNX/WASM) не входит в пакет: нужен отдельный
-  model-артефакт и зависимости.
+- Для локального провайдера канал синхронный; для API/Ollama — асинхронный:
+  `searchMemoryAsync`/`buildMemoryBlockAsync` (hook хода) досчитывают векторы,
+  считают embedding запроса и добавляют косинус к RRF. Синхронный
+  `memory.search` такие каналы пропускает, не ломаясь.
+- Живого события `memory/entries-changed` пока нет: локальный канал досчитывает
+  векторы лениво, API/Ollama — при первом поиске по store.
+- `local-hash-128` — офлайн-baseline (хэши слов/триграмм), не нейросетевая
+  модель. Нейросетевая локальная модель (ONNX/WASM) не входит в пакет: нужен
+  отдельный model-артефакт и зависимости; локальная модель сейчас доступна
+  через `provider: ollama` (HTTP localhost, NO_NETWORK его запрещает).
 - Нет ANN: brute-force косинус; порог перехода на `sqlite-vec` — по замеру
   (дизайн 021, >50k векторов / p95 > 50 мс).
+
+## Doctor
+
+```bash
+dsh-memory-embeddings doctor --config <файл.json>
+```
+
+Печатает, включён ли канал, провайдера/модель, наличие ключа в env (только имя),
+предупреждение об отправке текста провайдеру и причину отката на FTS5. Команда
+`doctor` основного пакета — отдельная задача; этот бинарь — проверяемая точка
+диагностики уже сейчас.
 
 Отчёт сравнения с FTS5: [docs/benchmark-embeddings.md](../../docs/benchmark-embeddings.md).

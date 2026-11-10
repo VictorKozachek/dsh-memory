@@ -8,7 +8,7 @@
       name: dsh-memory-embeddings
       config:
         enabled: false
-        provider: ""
+        provider: ""                 # local | local-onnx | ollama | openai-compatible
         base_url: ""
         model: ""
         api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY

@@ -1,10 +1,17 @@
 /**
- * Синхронный канал гибридного поиска (задача 016): brute-force косинус по
- * векторам в SQLite BLOB. Канал отдаёт `[{ id, score }]`, основной пакет
- * сливает его с FTS5 через reciprocal rank fusion.
+ * Каналы гибридного поиска (задача 016): brute-force косинус по векторам в
+ * SQLite BLOB. Канал всегда работает с `store`, который передал основной
+ * `memory.search`, а не с замыканием, иначе id из чужого namespace могли бы
+ * резолвиться в текущий.
+ *
+ * - {@link createLocalChannel} — синхронный канал для локального провайдера;
+ * - {@link createAsyncChannel} — канал для API/Ollama: перед поиском досчитывает
+ *   векторы и эмбеддинг запроса (используется `searchMemoryAsync`/hook).
  *
  * @module dsh-memory-embeddings/channel
  */
+
+import { backfillEmbeddings } from './backfill.js'
 
 /**
  * Косинус двух векторов.
@@ -28,30 +35,26 @@ export function cosineSimilarity(left, right) {
 }
 
 /**
- * Создать канал для синхронного локального провайдера.
+ * Создать синхронный канал для локального провайдера.
  *
  * @param {object} options — параметры.
- * @param {import('dsh-memory').MemoryStore} options.store — хранилище.
  * @param {{ embedOne: (text: string) => Float32Array, model: string }} options.provider — локальный провайдер.
  * @param {string} [options.model] — id модели.
  * @param {number} [options.weight] — вес канала в RRF.
  * @returns {{ name: string, weight: number, search: Function }} канал.
  */
-export function createLocalChannel({ store, provider, model = provider.model, weight = 0.5 } = {}) {
+export function createLocalChannel({ provider, model = provider.model, weight = 0.5 } = {}) {
   return {
     name: 'embeddings',
     weight,
     /**
-     * Найти ближайшие записи по косинусу.
-     *
-     * @param {{ query: string, limit?: number }} input — запрос.
+     * @param {{ store: import('dsh-memory').MemoryStore, query: string, limit?: number }} input — запрос и хранилище.
      * @returns {Array<{ id: number, score: number }>} кандидаты по убыванию.
      */
-    search({ query, limit = 20 } = {}) {
-      if (typeof query !== 'string' || query.trim() === '') return []
+    search({ store, query, limit = 20 } = {}) {
+      if (!store || typeof store.listEmbeddings !== 'function' || typeof query !== 'string' || query.trim() === '') return []
       // Локальный провайдер синхронный: досчитываем отсутствующие векторы прямо
-      // перед поиском, чтобы канал работал для любого воркспейса/сессии, а не
-      // только для того, который был открыт при загрузке плагина.
+      // перед поиском, чтобы канал работал для любого воркспейса/сессии.
       for (const row of store.listEntriesWithoutEmbedding(model)) {
         store.upsertEmbedding({
           entryId: row.id,
@@ -59,12 +62,56 @@ export function createLocalChannel({ store, provider, model = provider.model, we
           vector: provider.embedOne(`${row.title}\n${row.text}`),
         })
       }
-      const queryVector = provider.embedOne(query)
-      return store.listEmbeddings(model)
-        .map((row) => ({ id: row.entryId, score: cosineSimilarity(queryVector, row.vector) }))
-        .filter((row) => row.score > 0)
-        .sort((left, right) => right.score - left.score)
-        .slice(0, limit)
+      return nearestByCosine(store, provider.embedOne(query), model, limit)
     },
   }
+}
+
+/**
+ * Создать асинхронный канал для API/Ollama: векторы досчитываются батчами,
+ * эмбеддинг запроса считается через провайдер. Основной пакет вызывает его
+ * через `searchMemoryAsync`/`buildMemoryBlockAsync`.
+ *
+ * @param {object} options — параметры.
+ * @param {{ embed: (texts: string[]) => Promise<{ vectors: Float32Array[] }>, model: string }} options.provider — async-провайдер.
+ * @param {string} [options.model] — id модели.
+ * @param {number} [options.weight] — вес в RRF.
+ * @param {number} [options.batch_size] — размер батча бэкфилла.
+ * @param {boolean} [options.backfill] — досчитывать векторы перед поиском (по умолчанию да).
+ * @param {(level: string, message: string) => void} [options.log] — лог.
+ * @returns {{ name: string, weight: number, search: Function }} асинхронный канал.
+ */
+export function createAsyncChannel({
+  provider,
+  model = provider.model,
+  weight = 0.5,
+  batch_size = 32,
+  backfill = true,
+  log = () => {},
+} = {}) {
+  const prepared = new WeakSet()
+  return {
+    name: 'embeddings',
+    weight,
+    async search({ store, query, limit = 20 } = {}) {
+      if (!store || typeof store.listEmbeddings !== 'function' || typeof query !== 'string' || query.trim() === '') return []
+      if (backfill && !prepared.has(store)) {
+        prepared.add(store)
+        await backfillEmbeddings({ store, provider, model, batch_size, log })
+      }
+      const { vectors } = await provider.embed([query])
+      const queryVector = vectors?.[0]
+      if (!(queryVector instanceof Float32Array) || queryVector.length === 0) return []
+      return nearestByCosine(store, queryVector, model, limit)
+    },
+  }
+}
+
+/** Brute-force косинус по векторам выбранной модели в переданном store. */
+function nearestByCosine(store, queryVector, model, limit) {
+  return store.listEmbeddings(model)
+    .map((row) => ({ id: row.entryId, score: cosineSimilarity(queryVector, row.vector) }))
+    .filter((row) => row.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
 }

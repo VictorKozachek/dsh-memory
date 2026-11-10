@@ -7,20 +7,22 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { buildMemoryBlock } from '../lib/inject.js'
-import { searchMemory } from '../lib/search.js'
+import { buildMemoryBlock, buildMemoryBlockAsync } from '../lib/inject.js'
+import { searchMemory, searchMemoryAsync } from '../lib/search.js'
 import { openStore } from '../lib/store.js'
 import { backfillEmbeddings } from '../packages/dsh-memory-embeddings/lib/backfill.js'
-import { cosineSimilarity, createLocalChannel } from '../packages/dsh-memory-embeddings/lib/channel.js'
+import { cosineSimilarity, createAsyncChannel, createLocalChannel } from '../packages/dsh-memory-embeddings/lib/channel.js'
 import { resolveConfig } from '../packages/dsh-memory-embeddings/lib/config.js'
 import { doctorReport } from '../packages/dsh-memory-embeddings/lib/doctor.js'
 import { apply, createProvider } from '../packages/dsh-memory-embeddings/lib/index.js'
+import { createLocalOnnxProvider } from '../packages/dsh-memory-embeddings/lib/providers/local-onnx.js'
+import { doctorCommand } from '../packages/dsh-memory-embeddings/bin/doctor.js'
 import { createLocalProvider, embedLocal } from '../packages/dsh-memory-embeddings/lib/providers/local.js'
 import { createOllamaProvider } from '../packages/dsh-memory-embeddings/lib/providers/ollama.js'
 import { createOpenAiProvider } from '../packages/dsh-memory-embeddings/lib/providers/openai.js'
@@ -85,11 +87,9 @@ test('бэкфилл и канал: brute-force косинус находит з
   assert.equal(summary.failed, 0)
   assert.equal(store.listEmbeddings(provider.model).length, 1)
 
-  const channel = createLocalChannel({ store, provider, model: provider.model, weight: 0.5 })
+  const channel = createLocalChannel({ provider, model: provider.model, weight: 0.5 })
   // Канал умеет лениво досчитать векторы для нового/другого воркспейса.
-  assert.ok(channel.search({ query: 'индексатор', limit: 5 }).some((hit) => hit.id === id))
-  const hits = channel.search({ query: 'индексатор', limit: 5 })
-  assert.ok(hits.some((hit) => hit.id === id))
+  assert.ok(channel.search({ store, query: 'индексатор', limit: 5 }).some((hit) => hit.id === id))
 
   const fts = searchMemory(store, { query: 'индексатор' })
   const hybrid = searchMemory(store, { query: 'индексатор' }, { channels: [channel] })
@@ -106,6 +106,7 @@ test('конфиг: дефолт выключен; enabled без provider/model
     provider: '',
     base_url: '',
     model: '',
+    model_path: '',
     api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY',
     batch_size: 32,
     timeout_ms: 5_000,
@@ -116,6 +117,7 @@ test('конфиг: дефолт выключен; enabled без provider/model
   assert.equal(broken.config.enabled, true)
   assert.ok(broken.warnings.some((warning) => warning.includes('provider пуст')))
   assert.ok(broken.warnings.some((warning) => warning.includes('model пуст')))
+  assert.equal(resolveConfig({ enabled: true, provider: 'local-onnx', model: 'm' }).config.provider, 'local-onnx')
   const noBase = resolveConfig({ enabled: true, provider: 'openai-compatible', model: 'm' })
   assert.ok(noBase.warnings.some((warning) => warning.includes('base_url пуст')))
   assert.throws(() => createProvider(noBase.config), /base_url не задан/)
@@ -255,7 +257,140 @@ test('локальный канал лениво досчитывает вект
   const id = add(store, 'Хранилище', 'Хранилище проекта живёт в SQLite').id
   const provider = createLocalProvider()
   assert.equal(store.listEmbeddings(provider.model).length, 0)
-  const channel = createLocalChannel({ store, provider, model: provider.model })
-  assert.ok(channel.search({ query: 'хранилище' }).some((hit) => hit.id === id))
+  const channel = createLocalChannel({ provider, model: provider.model })
+  assert.ok(channel.search({ store, query: 'хранилище' }).some((hit) => hit.id === id))
   assert.ok(store.listEmbeddings(provider.model).length >= 1)
+})
+
+
+test('канал не подмешивает записи из другого store/namespace с тем же id', (t) => {
+  const storeA = tempStore(t)
+  const dirB = mkdtempSync(join(tmpdir(), 'dsh-memory-embeddings-b-'))
+  const storeB = openStore({ dbPath: dirB, namespace: 'other' })
+  t.after(() => { storeB.close(); rmSync(dirB, { recursive: true, force: true }) })
+
+  const provider = createLocalProvider()
+  const idA = storeA.insertEntry({ kind: 'doc', title: 'Индексатор', text: 'Индексатор обходит файлы', status: 'verified', confidence: 1 }).id
+  const idB = storeB.insertEntry({ kind: 'doc', title: 'Кот', text: 'кот сидит', status: 'verified', confidence: 1 }).id
+  assert.equal(idA, idB, 'для теста нужны совпадающие id')
+
+  // Вектор есть только в A; канал создан без замыкания store.
+  storeA.upsertEmbedding({ entryId: idA, model: provider.model, vector: provider.embedOne('Индексатор обходит файлы') })
+  const channel = createLocalChannel({ provider, model: provider.model })
+
+  // В B поиска «индексатор» нет, и канал не должен вернуть запись B по id из A.
+  assert.deepEqual(searchMemory(storeB, { query: 'индексатор' }), [])
+  assert.deepEqual(searchMemory(storeB, { query: 'индексатор' }, { channels: [channel] }), [])
+  assert.ok(searchMemory(storeA, { query: 'индексатор' }, { channels: [channel] }).some((row) => row.id === idA))
+})
+
+test('async-канал API/Ollama: гибрид работает через searchMemoryAsync и buildMemoryBlockAsync', async (t) => {
+  const store = tempStore(t)
+  const id = add(store, 'Индексатор', 'Индексатор обходит markdown-файлы').id
+  const calls = []
+  const provider = {
+    kind: 'openai-compatible',
+    model: 'mock-model',
+    async embed(texts) {
+      calls.push(...texts)
+      return { vectors: texts.map((text) => (String(text).includes('индексатор') ? Float32Array.from([1, 0]) : Float32Array.from([0, 1]))), dim: 2 }
+    },
+  }
+  const channel = createAsyncChannel({ provider, model: provider.model, batch_size: 4 })
+  assert.deepEqual(searchMemory(store, { query: 'индексатор' }, { channels: [channel] }), searchMemory(store, { query: 'индексатор' }), 'sync search пропускает async-канал, не ломаясь')
+  assert.ok((await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })).some((row) => row.id === id))
+
+  const block = await buildMemoryBlockAsync(store, 'индексатор', { env: {}, channels: [channel] })
+  assert.ok(block.block !== null)
+  assert.ok(calls.length > 0)
+})
+
+test('apply с API-провайдером регистрирует async-канал и даёт гибрид', async (t) => {
+  const store = tempStore(t)
+  const id = add(store, 'Индексатор', 'Индексатор обходит файлы').id
+  const originalFetch = globalThis.fetch
+  const originalKey = process.env.DSH_MEMORY_EMBEDDINGS_API_KEY_TEST
+  process.env.DSH_MEMORY_EMBEDDINGS_API_KEY_TEST = 'secret-test'
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: body.input.map((text) => ({ embedding: String(text).includes('индексатор') ? [1, 0] : [0, 1] })) }),
+      text: async () => '',
+    }
+  }
+  t.after(() => {
+    globalThis.fetch = originalFetch
+    if (originalKey === undefined) delete process.env.DSH_MEMORY_EMBEDDINGS_API_KEY_TEST
+    else process.env.DSH_MEMORY_EMBEDDINGS_API_KEY_TEST = originalKey
+  })
+
+  const channels = []
+  const logs = []
+  const ctx = {
+    memory: { registerSearchChannel: (channel) => { channels.push(channel); return () => {} } },
+    logger: { debug: () => {}, info: (message) => logs.push(message), warn: (message) => logs.push(message) },
+  }
+  apply(ctx, {
+    enabled: true,
+    provider: 'openai-compatible',
+    base_url: 'https://api.test/v1',
+    model: 'mock-model',
+    api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY_TEST',
+  })
+  assert.equal(channels.length, 1)
+  assert.ok(logs.some((line) => line.includes('ВНИМАНИЕ')), logs.join('\n'))
+
+  const results = await searchMemoryAsync(store, { query: 'индексатор' }, { channels })
+  assert.ok(results.some((row) => row.id === id))
+})
+
+
+test('local-onnx провайдер принимает локальный embedder и работает без сети', async (t) => {
+  const provider = createLocalOnnxProvider({
+    model: 'local-test',
+    dim: 2,
+    embedder: async (texts) => texts.map((text) => (String(text).includes('индексатор') ? [1, 0] : [0, 1])),
+  })
+  const store = tempStore(t)
+  const id = add(store, 'Индексатор', 'Индексатор обходит файлы').id
+  const channel = createAsyncChannel({ provider, model: provider.model })
+  const results = await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })
+  assert.ok(results.some((row) => row.id === id))
+
+  const unavailable = createLocalOnnxProvider({ model: 'missing-model' })
+  await assert.rejects(() => unavailable.embed(['текст']), /@xenova\/transformers|канал выключен/)
+})
+
+
+test('doctor-команда опционального пакета: предупреждение и наличие ключа без значения', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-doctor-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const file = join(dir, 'config.json')
+
+  const disabled = doctorCommand([], {})
+  assert.equal(disabled.code, 0)
+  assert.ok(disabled.lines.some((line) => line.includes('выключены')))
+
+  writeFileSync(file, JSON.stringify({
+    enabled: true,
+    provider: 'openai-compatible',
+    base_url: 'https://api.example.test/v1',
+    model: 'text-embedding-test',
+    api_key_env: 'DSH_MEMORY_DOCTOR_TEST_KEY',
+  }))
+  const withKey = doctorCommand(['--config', file], { DSH_MEMORY_DOCTOR_TEST_KEY: 'super-secret-value' })
+  assert.equal(withKey.code, 0)
+  const text = withKey.lines.join('\n')
+  assert.match(text, /ВНИМАНИЕ/)
+  assert.match(text, /ключ найден в env DSH_MEMORY_DOCTOR_TEST_KEY/)
+  assert.ok(!text.includes('super-secret-value'), 'значение ключа не должно печататься')
+
+  const noKey = doctorCommand(['--config', file], {})
+  assert.match(noKey.lines.join('\n'), /ключа нет в env/)
+
+  const broken = doctorCommand(['--config', join(dir, 'missing.json')], {})
+  assert.equal(broken.code, 1)
+  assert.match(broken.lines.join('\n'), /конфиг не прочитан/)
 })

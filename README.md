@@ -272,8 +272,9 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 `memory.registerSearchChannel`. Основной пакет не получает сетевой код; весь
 egress — в опциональном пакете, ключ только из env, `DSH_MEMORY_NO_NETWORK=1`
 запрещает сеть. Сравнение качества и латентности с FTS5 —
-[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); дизайн и
-критерии — [docs/embeddings-design.md](docs/embeddings-design.md).
+[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); диагностика —
+`dsh-memory-embeddings doctor --config <файл.json>`; дизайн и критерии —
+[docs/embeddings-design.md](docs/embeddings-design.md).
 
 ## Метрики
 

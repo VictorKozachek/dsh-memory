@@ -270,13 +270,14 @@ affect `bench`.
 
 Disabled by default: search is pure FTS5. The optional
 [`packages/dsh-memory-embeddings`](packages/dsh-memory-embeddings/README.md)
-package adds local (offline, keyless) or OpenAI-compatible/Ollama embeddings,
+package adds local (hash or ONNX, offline), OpenAI-compatible/Ollama embeddings,
 stores vectors in SQLite BLOBs and contributes a hybrid RRF BM25 + cosine
 channel via `memory.registerSearchChannel`. The main package gets no network
 code; all egress lives in the optional package, the key comes from env only, and
 `DSH_MEMORY_NO_NETWORK=1` blocks the network. Quality/latency vs FTS5:
-[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); design and
-criteria: [docs/embeddings-design.md](docs/embeddings-design.md).
+[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); diagnostics:
+`dsh-memory-embeddings doctor --config <file.json>`; design and criteria:
+[docs/embeddings-design.md](docs/embeddings-design.md).
 
 ## Metrics
 

@@ -5,7 +5,7 @@
  */
 
 /** Провайдеры, которые знает пакет. */
-export const PROVIDERS = Object.freeze(['local', 'ollama', 'openai-compatible'])
+export const PROVIDERS = Object.freeze(['local', 'local-onnx', 'ollama', 'openai-compatible'])
 
 /** Дефолты ряда `dsh-memory-embeddings`. */
 export const DEFAULT_CONFIG = Object.freeze({
@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   provider: '',
   base_url: '',
   model: '',
+  model_path: '',
   api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY',
   batch_size: 32,
   timeout_ms: 5_000,
@@ -45,7 +46,7 @@ export function resolveConfig(raw = {}) {
       warnings.push(`embeddings.provider должен быть одним из ${PROVIDERS.join(', ')} — оставляю пусто`)
     }
   }
-  for (const field of ['base_url', 'model', 'api_key_env']) {
+  for (const field of ['base_url', 'model', 'model_path', 'api_key_env']) {
     if (raw[field] !== undefined) {
       if (typeof raw[field] === 'string') config[field] = raw[field].trim()
       else warnings.push(`embeddings.${field} должен быть строкой`)

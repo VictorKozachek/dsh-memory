@@ -284,11 +284,16 @@ embeddings: включены (provider=openai-compatible, model=text-embedding-3
 - Основной пакет получил нейтральные точки `memory.storeFor`,
   `memory.registerSearchChannel`, `channels` в `memory.search` и миграцию 4 —
   без сетевого кода (тест `trust-boundary` остаётся зелёным).
-- Синхронный query-канал гибрида включён для `local`; для API/Ollama в этой
-  версии — только фоновый досчёт векторов (async query-канал — следующий шаг).
+- Каналы: `local` — синхронный, `openai-compatible`/`ollama` — асинхронный;
+  hook использует `buildMemoryBlockAsync`, поэтому API-бэкенд тоже даёт
+  гибридный RRF, а не только backfill. Синхронный `memory.search` async-каналы
+  пропускает.
+- `local` — офлайн-baseline (хэш слов/триграмм), не нейросетевая модель;
+  локальная модель доступна через `ollama` (HTTP localhost; NO_NETWORK
+  запрещает). ONNX/WASM остаётся открытым вопросом.
 - Событие `memory/entries-changed` из §2 пока не реализовано: локальный канал
-  лениво досчитывает векторы перед поиском, API/Ollama — бэкфилл при загрузке
-  плагина; live-обновление при write/verify — следующий шаг.
+  лениво досчитывает, API/Ollama — при первом поиске по store; live-обновление
+  при write/verify — следующий шаг.
 - Нейросетевая локальная модель (ONNX/WASM) и ANN остаются открытыми
   вопросами 021; отчёт [benchmark-embeddings.md](benchmark-embeddings.md)
   фиксирует baseline и цену опции.
