@@ -41,7 +41,7 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
 
 ```bash
 # 1. Индексация markdown-документации воркспейса (CLI из пакета).
-#    --json печатает отчёт: files / indexed / chunks / skipped / secrets.
+#    --json печатает отчёт: files / indexed / chunks / revived / stale / removed / skipped / secrets.
 #    --namespace задаёт имя памяти; без него берётся имя каталога воркспейса.
 dsh-memory index --workspace . --namespace dsh-memory --json
 
@@ -114,7 +114,8 @@ write-back обязан передавать `author` вида `cascade:*`/`mode
 | Статусы | `draft` — черновик, `verified` — проверено, `stale` — устарело |
 | Провенанс | `source_path` и `source_ref`, автор, время создания и обновления |
 | Дедупликация | `hash = sha256(kind\|title\|text)` уникален: при совпадении растёт confidence и обновляются источники |
-| Инвалидация | изменился sha256 файла или файл удалён → связанные записи становятся `stale`; `stale` не выдаётся никогда |
+| Индексация | `.kanban/tasks/*.md` и `docs/adr/*` → `decision` (TTL 180 дней), README компонентов и прочая документация → `doc`; фронтматтер карточек не мешает, чанки режутся по `##` |
+| Инвалидация | изменился sha256 файла или файл удалён → чанки индексатора становятся `stale` (запись остаётся для аудита, но не выдаётся); `stale` не выдаётся никогда |
 | TTL | `decision` — 180 дней, `fact` — 60, `answer` — 30 |
 
 ## Инструменты

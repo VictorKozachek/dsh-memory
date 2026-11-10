@@ -269,11 +269,18 @@ test('инкрементальность по sha256 + mtime: неизменён
   assert.equal(third.indexed, 1)
   assert.equal(third.unchanged, 1)
 
+  // Старый чанк не удаляется, а помечается stale (задача 014): из выдачи он
+  // исчезает, но остаётся следом для аудита.
   const guideTitles = store.database
-    .prepare('SELECT title FROM entries WHERE source_path = ?')
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND status = 'verified'")
     .all('docs/guide.md')
     .map((row) => row.title)
   assert.deepEqual(guideTitles, ['docs/guide.md → Новый раздел'])
+  const staleTitles = store.database
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND status = 'stale'")
+    .all('docs/guide.md')
+    .map((row) => row.title)
+  assert.deepEqual(staleTitles, ['docs/guide.md → Раздел'])
   assert.equal(store.searchEntries('руководства').length, 0, 'старый чанк остался в FTS')
   assert.equal(store.database.prepare('SELECT count(*) AS n FROM entries WHERE source_path = ?').get('README.md').n, 3)
 })
@@ -327,11 +334,15 @@ test('переиндексация не трогает записи memory.write
   assert.equal(store.getEntry(fact.id).kind, 'fact')
   assert.equal(store.getEntry(fact.id).status, 'verified')
 
-  // А чанки индексатора по этому файлу заменены.
+  // А чанки индексатора по этому файлу заменены: старый stale, новый verified.
   const chunks = store.database
-    .prepare("SELECT title FROM entries WHERE source_path = ? AND kind = 'doc' AND author = 'indexer'")
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND author = 'indexer' AND status = 'verified'")
     .all('docs/guide.md')
   assert.deepEqual(chunks.map((row) => row.title), ['docs/guide.md → Раздел'])
+  const stale = store.database
+    .prepare("SELECT title FROM entries WHERE source_path = ? AND author = 'indexer' AND status = 'stale'")
+    .all('docs/guide.md')
+  assert.deepEqual(stale.map((row) => row.title), ['docs/guide.md → Раздел'])
 })
 
 test('transaction откатывает изменения при ошибке', (t) => {

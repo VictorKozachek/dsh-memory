@@ -52,7 +52,7 @@ dsh plugin --profile web add <path to the package>   # then restart DSH Web
 
 ```bash
 # 1. Index the workspace markdown documentation (the package CLI).
-#    --json prints the report: files / indexed / chunks / skipped / secrets.
+#    --json prints the report: files / indexed / chunks / revived / stale / removed / skipped / secrets.
 #    --namespace names the memory; without it the workspace directory name is used.
 dsh-memory index --workspace . --namespace dsh-memory --json
 
@@ -123,7 +123,8 @@ then served to every future session *cheaper than it would have cost to verify*.
 | Statuses | `draft`, `verified`, `stale` — stale is never returned |
 | Provenance | every entry carries `source_path`, `source_ref`, author, timestamps |
 | Dedupe | `hash = sha256(kind\|title\|text)` is UNIQUE; a match raises confidence and merges sources |
-| Invalidation | source sha256 changed or file deleted → dependent entries go `stale` |
+| Indexing | `.kanban/tasks/*.md` and `docs/adr/*` → `decision` (180-day TTL), component READMEs and other docs → `doc`; chunks are split by `##` |
+| Invalidation | source sha256 changed or file deleted → indexer chunks go `stale` (kept for audit, never served) |
 | TTL | `decision` 180 days, `fact` 60 days, `answer` 30 days |
 
 ## Tools
