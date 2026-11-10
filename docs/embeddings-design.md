@@ -289,8 +289,11 @@ embeddings: включены (provider=openai-compatible, model=text-embedding-3
   гибридный RRF, а не только backfill. Синхронный `memory.search` async-каналы
   пропускает.
 - `local` — офлайн-baseline (хэш слов/триграмм), не нейросетевая модель;
-  локальная модель доступна через `ollama` (HTTP localhost; NO_NETWORK
-  запрещает). ONNX/WASM остаётся открытым вопросом.
+  локальная модель — `local-onnx` (обязательный `model_path`, `allowRemoteModels=false`)
+  или `ollama` (HTTP localhost; NO_NETWORK запрещает). Реальная ONNX-модель в
+  отчёте 016 не замерялась (нет артефакта); это граница для 016/021.
+- Сервис `memory.search` основного пакета стал асинхронным и ждёт async-каналы;
+  `memory.searchSync` сохраняет синхронный контракт для CLI/бенчмарка.
 - Событие `memory/entries-changed` из §2 пока не реализовано: локальный канал
   лениво досчитывает, API/Ollama — при первом поиске по store; live-обновление
   при write/verify — следующий шаг.

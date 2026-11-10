@@ -360,7 +360,10 @@ test('local-onnx провайдер принимает локальный embedd
   assert.ok(results.some((row) => row.id === id))
 
   const unavailable = createLocalOnnxProvider({ model: 'missing-model' })
-  await assert.rejects(() => unavailable.embed(['текст']), /@xenova\/transformers|канал выключен/)
+  await assert.rejects(() => unavailable.embed(['текст']), /model_path|@xenova\/transformers|канал выключен/)
+
+  const blocked = createLocalOnnxProvider({ model: 'missing-model', model_path: '/tmp/mock-model', env: { DSH_MEMORY_NO_NETWORK: '1' } })
+  await assert.rejects(() => blocked.embed(['текст']), /сеть запрещена/)
 })
 
 
@@ -393,4 +396,44 @@ test('doctor-команда опционального пакета: преду�
   const broken = doctorCommand(['--config', join(dir, 'missing.json')], {})
   assert.equal(broken.code, 1)
   assert.match(broken.lines.join('\n'), /конфиг не прочитан/)
+})
+
+test('сервис memory.search асинхронный и использует async-канал API/Ollama', async (t) => {
+  const { apply: pluginApply } = await import('../lib/index.js')
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-service-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  let service
+  const ctx = {
+    on: () => {},
+    provide: (name, value) => { service = value },
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  pluginApply(ctx, { db_path: dir, namespace: 'demo' })
+  const store = service.storeFor(process.cwd())
+  const id = add(store, 'Индексатор', 'Индексатор обходит файлы').id
+
+  const provider = {
+    model: 'mock',
+    async embed(texts) {
+      return { vectors: texts.map((text) => (String(text).includes('индексатор') ? Float32Array.from([1, 0]) : Float32Array.from([0, 1]))), dim: 2 }
+    },
+  }
+  service.registerSearchChannel(createAsyncChannel({ provider, model: provider.model }))
+  const results = await service.search({ query: 'индексатор' }, { workspace: process.cwd() })
+  assert.ok(results.some((row) => row.id === id))
+  assert.equal(typeof service.searchSync, 'function')
+})
+
+test('local-onnx при NO_NETWORK не делает сетевых вызовов до загрузки модели', async (t) => {
+  const originalFetch = globalThis.fetch
+  let fetched = 0
+  globalThis.fetch = async () => { fetched += 1; throw new Error('network must not be called') }
+  t.after(() => { globalThis.fetch = originalFetch })
+  const provider = createLocalOnnxProvider({
+    model: 'missing-local-model',
+    model_path: '/tmp/does-not-exist-onnx',
+    env: { DSH_MEMORY_NO_NETWORK: '1' },
+  })
+  await assert.rejects(() => provider.embed(['текст']), /сеть запрещена/)
+  assert.equal(fetched, 0)
 })

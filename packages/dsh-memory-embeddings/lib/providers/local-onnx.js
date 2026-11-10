@@ -10,6 +10,8 @@
  * @module dsh-memory-embeddings/providers/local-onnx
  */
 
+import { assertNetworkAllowed } from '../network.js'
+
 /**
  * Создать локальный ONNX-провайдер.
  *
@@ -18,9 +20,10 @@
  * @param {string} [options.model_path] — локальный путь модели (приоритетнее id).
  * @param {number} [options.dim] — ожидаемая размерность (проверяется).
  * @param {Function} [options.embedder] — готовая функция `(texts) => Promise<Float32Array[]>`.
+ * @param {Record<string, string | undefined>} [options.env] — окружение для NO_NETWORK.
  * @returns {{ kind: 'local-onnx', model: string, dim: number, embed: Function }} провайдер.
  */
-export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', model_path = '', dim = 384, embedder } = {}) {
+export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', model_path = '', dim = 384, embedder, env = process.env } = {}) {
   let resolved = embedder
   const source = model_path || model
   return {
@@ -28,7 +31,15 @@ export function createLocalOnnxProvider({ model = 'Xenova/all-MiniLM-L6-v2', mod
     model,
     dim,
     async embed(texts) {
-      if (typeof resolved !== 'function') resolved = await loadTransformersEmbedder(source)
+      if (typeof resolved !== 'function') {
+        // Строгий режим запрещает любой egress, включая ленивую догрузку модели
+        // из сети: local-onnx обязан работать только с локальным артефактом.
+        assertNetworkAllowed(env)
+        if (model_path === '') {
+          throw new Error('dsh-memory-embeddings: local-onnx требует model_path (локальный артефакт модели); удалённая загрузка модели не поддерживается')
+        }
+        resolved = await loadTransformersEmbedder(source)
+      }
       const vectors = await resolved(texts)
       if (!Array.isArray(vectors) || vectors.length !== texts.length) {
         throw new Error('dsh-memory-embeddings: локальная модель вернула неверное число векторов')
@@ -63,6 +74,9 @@ async function loadTransformersEmbedder(source) {
   if (typeof pipeline !== 'function') {
     throw new Error('dsh-memory-embeddings: @xenova/transformers не экспортирует pipeline')
   }
+  // Модель уже локальная: запрещаем @xenova ходить в сеть даже при разрешённом
+  // egress, чтобы local-onnx оставался предсказуемо офлайновым.
+  if (transformers.env !== undefined) transformers.env.allowRemoteModels = false
   const extractor = await pipeline('feature-extraction', source)
   return async (texts) => {
     const output = await extractor(texts, { pooling: 'mean', normalize: true })

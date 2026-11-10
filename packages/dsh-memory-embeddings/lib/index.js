@@ -50,7 +50,7 @@ export function createProvider(config, { env = process.env, fetchImpl } = {}) {
     case 'local':
       return createLocalProvider({ model: config.model })
     case 'local-onnx':
-      return createLocalOnnxProvider({ model: config.model, model_path: config.model_path })
+      return createLocalOnnxProvider({ model: config.model, model_path: config.model_path, env })
     case 'ollama':
       return createOllamaProvider({
         base_url: config.base_url || undefined,
