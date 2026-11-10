@@ -7,13 +7,17 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 
 import { ROUTER_DEFAULTS, RouterTimeoutError, resolveRouterConfig, routeTurn } from '../lib/router.js'
 import { openStore } from '../lib/store.js'
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** Временное хранилище для route-метрик. */
 function tempStore(t) {
@@ -261,4 +265,81 @@ test('route-событие приходит до первого токена L3 
     assert.ok(routeIndex >= 0, `${path.name}: нет route-события`)
     assert.ok(tokenIndex > routeIndex, `${path.name}: route должен быть раньше токена`)
   }
+})
+
+
+test('router.enabled false: L3 не ограничен router.timeout_ms (длинный ответ проходит)', async (t) => {
+  const store = tempStore(t)
+  const { calls, providers: p } = providers({
+    l2: () => ({ answer: 'L2', confidence: 1 }),
+    l3: () => new Promise((resolve) => setTimeout(() => resolve({ answer: 'медленный L3', confidence: 1 }), 60)),
+  })
+  const startedAt = Date.now()
+  const result = await routeTurn({
+    query: 'вопрос',
+    providers: p,
+    store,
+    config: { router: { enabled: false, timeout_ms: 10 } },
+  })
+  assert.equal(result.layer, 'L3')
+  assert.equal(result.answer, 'медленный L3')
+  assert.equal(calls.l2, 0)
+  assert.ok(Date.now() - startedAt >= 50, 'disabled-путь не должен обрываться таймаутом роутера')
+})
+
+test('L2 adapter: голый маркер ANSWER — не ответ, роутер уходит на L3', async (t) => {
+  const store = tempStore(t)
+  const { calls, providers: p } = providers({
+    l2: () => 'ANSWER',
+    l3: () => ({ answer: 'L3 после маркера', confidence: 1 }),
+  })
+  const result = await routeTurn({ query: 'вопрос', providers: p, store, config: { router: { enabled: true } } })
+  assert.equal(result.layer, 'L3')
+  assert.equal(result.answer, 'L3 после маркера')
+  assert.equal(calls.l2, 1)
+  assert.equal(calls.l3, 1)
+
+  const dotted = await routeTurn({
+    query: 'вопрос',
+    providers: { l2: () => 'ANSWER.', l3: () => ({ answer: 'L3', confidence: 1 }) },
+    store,
+    config: { router: { enabled: true } },
+  })
+  assert.equal(dotted.layer, 'L3')
+})
+
+test('mock AgentLoop: выключенный роутер сохраняет обычный ход (L3, L2 не вызывается)', async (t) => {
+  const store = tempStore(t)
+  const calls = []
+  const agentLoop = {
+    async run(query) {
+      const route = await routeTurn({
+        query,
+        providers: {
+          l2: async () => { calls.push('l2'); return { answer: 'L2', confidence: 1 } },
+          l3: async () => { calls.push('l3'); return { answer: 'ответ хода', confidence: 1 } },
+        },
+        store,
+        config: { router: { enabled: false } },
+      })
+      return { message: route.answer, layer: route.layer }
+    },
+  }
+  assert.deepEqual(await agentLoop.run('привет'), { message: 'ответ хода', layer: 'L3' })
+  assert.deepEqual(calls, ['l3'])
+})
+
+test('standalone: висящий L3 даёт RouterTimeoutError, а не выход процесса', () => {
+  const script = `
+    import { routeTurn } from ${JSON.stringify(pathToFileURL(join(ROOT, 'lib/router.js')).href)};
+    routeTurn({
+      query: 'q',
+      providers: { l2: () => ({ status: 'NO_ANSWER' }), l3: () => new Promise(() => {}) },
+      config: { router: { enabled: true, timeout_ms: 30 } },
+    }).then(() => console.log('OK')).catch((error) => console.log('ERR', error.name));
+  `
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 2_000 })
+  assert.equal(child.status, 0, child.stderr)
+  assert.match(child.stdout, /ERR RouterTimeoutError/)
+  assert.ok(child.signal === null, 'процесс не должен быть убит внешним timeout')
 })
