@@ -35,7 +35,8 @@ dsh plugin --profile web add <путь к пакету>   # затем пере�
   отсеянные секреты), `dsh-memory index --dry-run` и фоновая автоиндексация при первом
   ходе с отключением через `DSH_MEMORY_AUTOINDEX=off`;
 - векторы в основной пакет не входят: при необходимости ставится отдельный `dsh-memory-embeddings` (позже),
-  и только он работает с провайдером или локальной моделью.
+  и только он работает с провайдером или локальной моделью; дизайн, границы доверия и критерии 016 —
+  [docs/embeddings-design.md](docs/embeddings-design.md).
 
 ### Первый запрос
 
@@ -204,7 +205,7 @@ dsh-memory:
     include: ["**/*.md"]
     exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
     max_chunk_tokens: 800
-  embeddings: { enabled: false, model: "" }
+  embeddings: { enabled: false, model: "" }   # legacy-поле; провайдеры — в dsh-memory-embeddings
   verify: { require_source_for_verified: true }
   cascade:
     enabled: false                                 # мягкий каскад L1 → L2 (triage) → L3

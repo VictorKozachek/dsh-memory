@@ -6,6 +6,7 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./network": "./lib/network.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -17,6 +18,7 @@
     "data",
     "docs/benchmark-real.md",
     "docs/benchmark-mvp.md",
+    "docs/embeddings-design.md",
     "cordis.patch.yml"
   ],
   "bin": {
