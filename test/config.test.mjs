@@ -57,7 +57,7 @@ test('дефолты повторяют блок dsh-memory из README', () => 
   assert.equal(config.namespace, 'auto')
   assert.equal(config.db_path, '~/.dsh/memory')
   assert.deepEqual(config.inject, { enabled: true, top_k: 3, token_budget: 600 })
-  assert.deepEqual(config.search, { default_status: 'verified', snippet_chars: 300 })
+  assert.deepEqual(config.search, { default_status: 'verified', snippet_chars: 300, synonyms: true })
   assert.deepEqual(config.index, {
     include: ['**/*.md'],
     exclude: ['.git/**', 'node_modules/**', 'target/**', 'dist/**', 'tmp/**', '.cache/**'],
@@ -131,7 +131,7 @@ test('каждое невалидное поле заменяется дефол
     namespace: 7,
     db_path: '',
     inject: { enabled: 'yes', top_k: 0, token_budget: 1.5 },
-    search: { default_status: 'stale', snippet_chars: -1 },
+    search: { default_status: 'stale', snippet_chars: -1, synonyms: 'yes' },
     index: { include: 'README.md', exclude: [1], max_chunk_tokens: '800' },
     embeddings: 'off',
     verify: { require_source_for_verified: 'no' },
@@ -147,6 +147,7 @@ test('каждое невалидное поле заменяется дефол
     'inject.token_budget',
     'search.default_status',
     'search.snippet_chars',
+    'search.synonyms',
     'index.include',
     'index.exclude',
     'index.max_chunk_tokens',

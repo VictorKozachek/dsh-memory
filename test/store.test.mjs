@@ -46,12 +46,12 @@ test('схема содержит sources, entries, entries_fts, metrics и ун
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
     .all()
     .map((row) => row.name)
-  for (const table of ['sources', 'entries', 'entries_fts', 'metrics']) {
+  for (const table of ['sources', 'entries', 'entries_fts', 'entries_fts_lex', 'entries_fts_trigram', 'metrics']) {
     assert.ok(tables.includes(table), `нет таблицы ${table}`)
   }
 
   const columns = store.database.prepare('PRAGMA table_info(entries)').all().map((column) => column.name)
-  for (const column of ['namespace', 'kind', 'title', 'text', 'status', 'confidence', 'source_path', 'source_ref', 'author', 'created_at', 'updated_at', 'hash']) {
+  for (const column of ['namespace', 'kind', 'title', 'text', 'title_lex', 'text_lex', 'status', 'confidence', 'source_path', 'source_ref', 'author', 'created_at', 'updated_at', 'hash']) {
     assert.ok(columns.includes(column), `нет колонки entries.${column}`)
   }
 
@@ -67,7 +67,17 @@ test('схема содержит sources, entries, entries_fts, metrics и ун
     .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'entries' ORDER BY name")
     .all()
     .map((row) => row.name)
-  assert.deepEqual(triggers, ['entries_fts_delete', 'entries_fts_insert', 'entries_fts_update'])
+  assert.deepEqual(triggers, [
+    'entries_fts_delete',
+    'entries_fts_insert',
+    'entries_fts_lex_delete',
+    'entries_fts_lex_insert',
+    'entries_fts_lex_update',
+    'entries_fts_trigram_delete',
+    'entries_fts_trigram_insert',
+    'entries_fts_trigram_update',
+    'entries_fts_update',
+  ])
 })
 
 test('вставка и выборка записи по id и по хэшу', (t) => {

@@ -146,22 +146,24 @@ test('injectionEnabled: off/false/0/no выключают, остальное �
 test('ошибка поиска не ломает ход: блока просто нет', (t) => {
   const store = tempStore(t)
   addEntry(store)
-  store.database.exec('DROP TABLE entries_fts')
+  store.database.exec('DROP TABLE entries_fts_lex')
 
   const result = buildMemoryBlock(store, 'каскад L0 L1 L2 L3', { env: {} })
   assert.equal(result.block, null)
   assert.equal(result.tokens, 0)
-  assert.match(result.error, /no such table: entries_fts/)
+  assert.match(result.error, /no such table: entries_fts_lex/)
 })
 
 test('запрос — ровно первые 200 символов последнего сообщения', () => {
   const seen = []
   const fakeStore = {
     namespace: 'demo',
-    searchEntries: (query) => {
+    searchEntries: () => [],
+    searchLex: (query) => {
       seen.push(query)
       return []
     },
+    searchVerifiedAnswersByTitle: () => [],
   }
 
   const late = buildMemoryBlock(fakeStore, `${'слово '.repeat(100)}каскад`, { env: {} })

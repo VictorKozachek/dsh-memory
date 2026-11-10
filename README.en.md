@@ -115,6 +115,13 @@ then served to every future session *cheaper than it would have cost to verify*.
 
 ## Memory (RAG)
 
+Search is lexical, with no vectors and no network: FTS5 over a stemmed index
+(Russian Snowball + loose stems), a trigram index for typos and substrings,
+synonyms from `data/synonyms.json` (disabled with `search.synonyms: false`), and
+a separate verified Q&A channel whose title matches rank above ordinary
+snippets (lexical engine and `verified` status only). Plain `unicode61` remains the comparison engine (`engine:
+"unicode61"` / `dsh-memory bench --compare`).
+
 | Aspect | Design |
 | --- | --- |
 | Storage | SQLite at `~/.dsh/memory/<namespace>.db`: `sources`, `entries`, `entries_fts`, `metrics` |
@@ -196,7 +203,7 @@ dsh-memory:
   namespace: auto
   db_path: ~/.dsh/memory
   inject: { enabled: true, top_k: 3, token_budget: 600 }
-  search: { default_status: verified, snippet_chars: 300 }
+  search: { default_status: verified, snippet_chars: 300, synonyms: true }
   index:
     include: ["**/*.md"]
     exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]

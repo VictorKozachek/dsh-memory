@@ -182,7 +182,9 @@ test('пустой и невалидный запрос дают пустой м
     assert.deepEqual(searchMemory(store, input), [], `запрос ${JSON.stringify(input)} должен дать []`)
   }
   for (const query of ['ИЛИ (', '"незакрытая', '*', 'AND']) {
-    assert.deepEqual(searchMemory(store, { query, status: 'all' }), [], `невалидный FTS5-запрос "${query}" должен дать []`)
+    // Сырой FTS5-синтаксис проверяем на движке unicode61: лексический движок
+    // санитайзит запрос и трактует пунктуацию как разделители.
+    assert.deepEqual(searchMemory(store, { query, status: 'all' }, { engine: 'unicode61' }), [], `невалидный FTS5-запрос "${query}" должен дать []`)
   }
 })
 
@@ -254,9 +256,10 @@ test('поломка FTS не маскируется под «ничего не 
   const store = tempStore(t)
   seed(store)
   store.database.exec('DROP TABLE entries_fts')
+  store.database.exec('DROP TABLE entries_fts_lex')
 
   assert.throws(() => store.searchEntries('память'), /no such table: entries_fts/)
-  assert.throws(() => searchMemory(store, { query: 'память' }), /no such table: entries_fts/)
+  assert.throws(() => searchMemory(store, { query: 'память' }), /no such table: entries_fts_lex/)
 })
 
 test('matchMode any находит запись при частичном совпадении слов', (t) => {
