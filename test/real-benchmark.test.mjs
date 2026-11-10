@@ -56,9 +56,16 @@ test('прогон на реальном корпусе: hit-rate и эконо�
   assert.ok(result.hitRate >= BENCH_TARGETS.hitRate, `hit-rate ${result.hitRate}`)
   assert.ok(result.tokenSavings >= BENCH_TARGETS.tokenSavings, `экономия ${result.tokenSavings}`)
   assert.ok(result.tokensBefore > result.tokensAfter)
-  assert.ok(result.perQuestion.every((item) => item.source === item.source && item.matchedSources.length > 0))
-  // Список промахов не скрывается: он есть в результате всегда.
-  assert.ok(Array.isArray(result.perQuestion.filter((item) => !item.relevant)))
+  for (const item of result.perQuestion) {
+    assert.equal(typeof item.relevant, 'boolean')
+    assert.equal(item.relevant, item.matchedSources.includes(item.source), `${item.id}: relevant должен совпадать с наличием source в блоке`)
+    for (const source of item.matchedSources) {
+      assert.ok(existsSync(join(ROOT, source)), `${item.id}: блок ссылается на несуществующий ${source}`)
+    }
+  }
+  const misses = result.perQuestion.filter((item) => !item.relevant)
+  assert.equal(misses.length, result.questions - Math.round(result.hitRate * result.questions), 'промахи не должны скрываться')
+  for (const miss of misses) assert.ok(miss.matchedSources.length > 0, `${miss.id}: у промаха нет альтернатив`)
 })
 
 test('лексический движок на реальном корпусе не хуже чистого unicode61', () => {
@@ -139,4 +146,28 @@ test('bench не зависит от DSH_MEMORY_DB: временная БД ис
   const result = JSON.parse(output[0])
   assert.equal(result.questions, 20)
   assert.equal(result.passed, true)
+})
+
+test('index не принимает bench-флаги: код 2 и понятная ошибка', () => {
+  for (const flag of [['--questions', 'x'], ['--with-fixture'], ['--compare']]) {
+    const errors = []
+    const code = main(['index', ...flag], {
+      env: {},
+      stdout: { write: () => {} },
+      stderr: { write: (chunk) => { errors.push(chunk) } },
+    })
+    assert.equal(code, 2, `index ${flag.join(' ')} должен давать код 2`)
+    assert.match(errors.join(''), /неизвестный аргумент/)
+  }
+})
+
+test('--db-path вместе с --compare отклоняется с кодом 2', () => {
+  const errors = []
+  const code = main(['bench', '--compare', '--db-path', join(tmpdir(), 'dsh-memory-bench-db')], {
+    env: {},
+    stdout: { write: () => {} },
+    stderr: { write: (chunk) => { errors.push(chunk) } },
+  })
+  assert.equal(code, 2)
+  assert.match(errors.join(''), /--db-path несовместим с --compare/)
 })
