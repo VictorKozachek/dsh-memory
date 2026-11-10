@@ -8,6 +8,7 @@
     ".": "./lib/index.js",
     "./network": "./lib/network.js",
     "./router": "./lib/router.js",
+    "./roles": "./lib/roles.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -22,6 +23,7 @@
     "docs/benchmark-embeddings.md",
     "docs/embeddings-design.md",
     "docs/router-design.md",
+    "docs/roles-design.md",
     "cordis.patch.yml"
   ],
   "bin": {
