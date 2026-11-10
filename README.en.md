@@ -119,7 +119,7 @@ Search is lexical, with no vectors and no network: FTS5 over a stemmed index
 (Russian Snowball + loose stems), a trigram index for typos and substrings,
 synonyms from `data/synonyms.json` (disabled with `search.synonyms: false`), and
 a separate verified Q&A channel whose title matches rank above ordinary
-snippets. Plain `unicode61` remains the comparison engine (`engine:
+snippets (lexical engine and `verified` status only). Plain `unicode61` remains the comparison engine (`engine:
 "unicode61"` / `dsh-memory bench --compare`).
 
 | Aspect | Design |

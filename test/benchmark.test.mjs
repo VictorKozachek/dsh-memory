@@ -14,6 +14,7 @@ import test from 'node:test'
 
 import {
   BENCH_QUESTION_COUNT,
+  compareBenchmark,
   BENCH_QUESTIONS_FILE,
   BENCH_TARGETS,
   BENCH_WORKSPACE,
@@ -80,8 +81,10 @@ test('отчёт: markdown с целями, 20 вопросами и воспр�
   assert.match(report, /# Бенчмарк MVP dsh-memory/)
   assert.match(report, /hit-rate L1/)
   assert.match(report, /Экономия токенов/)
-  assert.match(report, /dsh-memory bench --report docs\/benchmark-mvp\.md/)
+  assert.match(report, /dsh-memory bench (?:--compare )?--report docs\/benchmark-mvp\.md/)
   assert.equal((report.match(/^\| \d+ \|/gmu) ?? []).length, 20)
+  assert.match(report, /свойство подобранной фикстуры/)
+  assert.match(report, /задача 022/)
 
   const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-report-'))
   try {
@@ -144,4 +147,13 @@ test('край конфига: сниппет 2000 символов не вле�
   assert.equal(result.block, null, 'строка не влезла в бюджет — блок должен быть пустым')
   assert.equal(result.tokens, 0)
   assert.ok(result.hits > 0, 'поиск находит запись, просто она не помещается в бюджет')
+})
+
+test('отчёт сравнения воспроизводится командой с --compare', () => {
+  const comparison = compareBenchmark()
+  const report = renderBenchmarkReport({ ...comparison.lexical, comparison: comparison.unicode61 })
+  assert.match(report, /dsh-memory bench --compare --report docs\/benchmark-mvp\.md/)
+  assert.match(report, /Сравнение движков/)
+  assert.match(report, /unicode61 \(чистый\)/)
+  assert.match(report, /цели достигнуты на фикстуре/)
 })

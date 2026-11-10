@@ -99,16 +99,25 @@ test('синонимы расширяют запрос и выключаются
 test('verified Q&A ищется отдельным каналом по заголовку и идёт выше обычных сниппетов', (t) => {
   const store = tempStore(t)
   const doc = add(store, 'Провенанс', 'Провенанс записи состоит из source_path и source_ref')
-  const answer = add(store, 'Что такое провенанс', 'Провенанс — это источник записи', { kind: 'answer' })
+  const answer = add(store, 'Что такое провенанс', 'Источник записи и автор', { kind: 'answer' })
   const draftAnswer = add(store, 'Что такое провенанс (черновик)', 'Провенанс черновой', { kind: 'answer', status: 'draft' })
 
   const results = searchMemory(store, { query: 'провенанс' })
   assert.equal(results[0].id, answer.id, 'verified Q&A должен быть первым')
+  // Кириллица в SQLite lower() не складывается — канал обязан сравнивать в JS.
+  for (const query of ['Что такое провенанс', 'что такое провенанс', 'ЧТО ТАКОЕ ПРОВЕНАНС']) {
+    assert.equal(searchMemory(store, { query })[0]?.id, answer.id, `регистр запроса ${query}`)
+  }
+  // Чистый unicode61 не должен пользоваться Q&A-каналом: иначе сравнение движков нечестное.
+  // unicode61 может найти answer обычным MATCH по заголовку, но не должен
+  // получать Q&A-boost (синтетический score -1e9).
+  const raw = searchMemory(store, { query: 'провенанс', k: 5 }, { engine: 'unicode61' })
+  assert.ok(raw.every((row) => row.score > -1e6), 'unicode61 не должен подмешивать Q&A-канал')
   assert.ok(!results.some((result) => result.id === draftAnswer.id), 'draft Q&A не должен попадать в канал')
   assert.ok(results.some((result) => result.id === doc.id), 'обычный сниппет должен остаться в выдаче')
 
-  // В статусе all черновик виден обычным каналом, но Q&A-канал (verified)
-  // по-прежнему ставит проверенный ответ первым.
+  // Q&A-канал работает только для status:verified; при status:all оба ответа
+  // видны обычным каналом, без буста.
   const withDrafts = searchMemory(store, { query: 'провенанс', status: 'all' })
   assert.ok(withDrafts.some((result) => result.id === answer.id), 'verified answer виден')
   assert.ok(withDrafts.some((result) => result.id === draftAnswer.id), 'draft виден при status:all')
