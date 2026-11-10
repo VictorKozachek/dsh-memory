@@ -1,0 +1,18 @@
+# Патч-слой опционального пакета эмбеддингов (задача 016).
+#
+# Ставится отдельно от dsh-memory и монтируется после него; по умолчанию
+# выключен, поэтому установка пакета сама по себе не меняет поиск. Конфиг —
+# ряд `dsh-memory-embeddings`; значения по умолчанию дублируются в lib/config.js.
+- insert:
+    - id: dsh-memory-embeddings
+      name: dsh-memory-embeddings
+      config:
+        enabled: false
+        provider: ""                 # local | local-onnx | ollama | openai-compatible
+        base_url: ""
+        model: ""
+        api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY
+        batch_size: 32
+        timeout_ms: 5000
+        max_retries: 2
+        hybrid_weight: 0.5

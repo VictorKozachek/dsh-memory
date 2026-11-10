@@ -18,6 +18,7 @@
     "data",
     "docs/benchmark-real.md",
     "docs/benchmark-mvp.md",
+    "docs/benchmark-embeddings.md",
     "docs/embeddings-design.md",
     "cordis.patch.yml"
   ],

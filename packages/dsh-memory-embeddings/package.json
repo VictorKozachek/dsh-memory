@@ -1,0 +1,39 @@
+{
+  "name": "dsh-memory-embeddings",
+  "version": "0.1.0",
+  "description": "Опциональные эмбеддинги и гибридный поиск для dsh-memory (без сети в основном пакете)",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "bin": {
+    "dsh-memory-embeddings": "./bin/doctor.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "dsh-memory": "^0.1.0",
+    "@xenova/transformers": "^2.17.0"
+  },
+  "peerDependenciesMeta": {
+    "@xenova/transformers": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT"
+}

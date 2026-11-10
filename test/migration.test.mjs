@@ -21,7 +21,7 @@ function userVersion(store) {
   return Number(store.database.prepare('PRAGMA user_version').get().user_version)
 }
 
-test('БД v2 с записями открывается на v3, записи целы и ищутся по словоформе/опечатке/синониму', (t) => {
+test('БД v2 с записями открывается на текущую схему, записи целы и ищутся по словоформе/опечатке/синониму', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-migration-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
 
@@ -44,13 +44,14 @@ test('БД v2 с записями открывается на v3, записи �
   db.exec('DROP TABLE entries_fts_trigram')
   db.exec('ALTER TABLE entries DROP COLUMN title_lex')
   db.exec('ALTER TABLE entries DROP COLUMN text_lex')
+  db.exec('DROP TABLE embeddings')
   db.exec('PRAGMA user_version = 2')
   created.close()
 
   // 2. Открываем «старую» БД текущим кодом: миграция 3 должна пройти.
   const upgraded = openStore({ dbPath: dir, namespace: 'n' })
   t.after(() => upgraded.close())
-  assert.equal(userVersion(upgraded), 3)
+  assert.equal(userVersion(upgraded), 4)
   const entry = upgraded.getEntry(id)
   assert.equal(entry.title, 'Индексатор')
   assert.equal(entry.status, 'verified')
@@ -64,7 +65,7 @@ test('БД v2 с записями открывается на v3, записи �
   upgraded.close()
   const reopened = openStore({ dbPath: dir, namespace: 'n' })
   t.after(() => reopened.close())
-  assert.equal(userVersion(reopened), 3)
+  assert.equal(userVersion(reopened), 4)
   assert.equal(reopened.getEntry(id).text, entry.text)
   assert.ok(searchMemory(reopened, { query: 'индексаторами' }).some((row) => row.id === id))
 })

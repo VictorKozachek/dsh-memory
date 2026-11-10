@@ -263,6 +263,19 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 Временная БД используется всегда, если не задан `--db-path`; `DSH_MEMORY_DB`
 на `bench` не влияет.
 
+## Эмбеддинги (опция)
+
+По умолчанию выключены: поиск — чистый FTS5. Опциональный пакет
+[`packages/dsh-memory-embeddings`](packages/dsh-memory-embeddings/README.md)
+даёт локальные (офлайн, без ключей) или OpenAI-совместимые/Ollama эмбеддинги,
+хранит векторы в SQLite BLOB и добавляет гибридный RRF BM25 + косинус через
+`memory.registerSearchChannel`. Основной пакет не получает сетевой код; весь
+egress — в опциональном пакете, ключ только из env, `DSH_MEMORY_NO_NETWORK=1`
+запрещает сеть. Сравнение качества и латентности с FTS5 —
+[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); диагностика —
+`dsh-memory-embeddings doctor --config <файл.json>`; дизайн и критерии —
+[docs/embeddings-design.md](docs/embeddings-design.md).
+
 ## Метрики
 
 | Цель | Метрика | Планка MVP |
