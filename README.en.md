@@ -159,7 +159,7 @@ message and injects at most 3 entries (budget ≤ 600 tokens) as
 added and the turn costs nothing extra. Disabled by `DSH_MEMORY_INJECT=off`;
 added latency to first token ≤ 50 ms, never blocking.
 
-## Dispatcher and specialised submodels (proposal)
+## Dispatcher and specialised submodels (design spike 018)
 
 Beyond the MVP, the cheap L2 role can be played not by a single submodel but by
 a dispatcher (manager submodel) with a registry of specialists: it gets the
@@ -191,8 +191,11 @@ to L3 when they cannot.
 The developer → reviewer → fixes loop matters: no specialist signs off on its
 own output; the tester works independently of the developer. Roles scale
 through a **role registry**: a new specialist is a configuration entry, not a
-dispatcher change. Proposal only, after the MVP. Risks: latency, coordination
-cost, routing errors, conflicting answers, prompt and role versioning.
+dispatcher change. Status: **design spike 018** — registry, protocol,
+aggregation and conflict resolution are in [docs/roles-design.md](docs/roles-design.md);
+the mock routing prototype is [lib/roles.js](lib/roles.js); default behaviour is
+unchanged, implementation is phase 5. Risks: latency, coordination cost, routing
+errors, conflicting answers, prompt and role versioning.
 
 ## Configuration
 
