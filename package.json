@@ -15,6 +15,7 @@
     "presets",
     "bench",
     "data",
+    "docs/benchmark-real.md",
     "docs/benchmark-mvp.md",
     "cordis.patch.yml"
   ],
