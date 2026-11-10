@@ -230,8 +230,9 @@ test('добавка хука к ходу ≤ 50 мс после разогре�
     step: 1,
     signal: { aborted: false },
   }
-  // Разогрев, затем лучшее из трёх измерений: полный прогон node --test идёт
-  // параллельно другими файлами, и одиночный замер ловит чужую нагрузку.
+  // Разогрев. Полный прогон node --test идёт параллельно другими файлами,
+  // поэтому wall-clock берём лучшим из трёх, а CPU-время процесса — как
+  // изолированную оценку реальной добавки (чужая нагрузка его не раздувает).
   await runHook(listener, payload)
   let best = Number.POSITIVE_INFINITY
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -239,7 +240,14 @@ test('добавка хука к ходу ≤ 50 мс после разогре�
     await runHook(listener, payload)
     best = Math.min(best, performance.now() - startedAt)
   }
-  assert.ok(best <= 50, `хук добавил ${best} мс`)
+
+  const cpuBefore = process.cpuUsage()
+  await runHook(listener, payload)
+  const cpu = process.cpuUsage(cpuBefore)
+  const cpuMs = (cpu.user + cpu.system) / 1_000
+
+  assert.ok(best <= 50, `хук добавил ${best} мс wall-clock`)
+  assert.ok(cpuMs <= 50, `хук потребил ${cpuMs} мс CPU`)
 })
 
 test('createPluginMessage: форма сообщения, заморозка и уникальный id', () => {

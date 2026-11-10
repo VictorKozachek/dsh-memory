@@ -56,6 +56,9 @@ test('recordRouteMetric валидирует решение каскада', (t)
   assert.throws(() => recordRouteMetric(store, { layer: 'L2', reason: 'x', tokensSavedEstimate: -1 }), /tokens_saved_estimate/)
   assert.throws(() => recordRouteMetric(store, { layer: 'L2', reason: 'x', tokensSavedEstimate: 'много' }), /tokens_saved_estimate/)
   assert.throws(() => recordRouteMetric(store, { layer: 'L1', reason: 'x', tokensSavedEstimate: 0, injectedTokens: -1 }), /injected_tokens/)
+  // Экономия возможна только на L2: L1 — расход, L3 — основная модель.
+  assert.throws(() => recordRouteMetric(store, { layer: 'L1', reason: 'injection', tokensSavedEstimate: 1000 }), /только на L2/)
+  assert.throws(() => recordRouteMetric(store, { layer: 'L3', reason: 'main model', tokensSavedEstimate: 500 }), /только на L2/)
   assert.equal(routeEvents(store).length, 0)
 })
 
@@ -109,6 +112,17 @@ test('L2 вместо L3: route пишет экономию, без расход
   assert.equal(result.tokens_saved_estimate, 500)
   assert.equal(result.injected_tokens, 0)
   assert.equal(result.published, false)
+})
+
+test('L3 (основная модель) по умолчанию не даёт экономии и не считается в stats', (t) => {
+  const store = tempStore(t)
+  const reporter = createRouteReporter(store, { tokenMeter: { estimateMessage: () => 500 } })
+
+  const result = reporter.record({ layer: 'L3', reason: 'main model answer', text: 'ответ основной модели' })
+  assert.equal(result.tokens_saved_estimate, 0, 'ответ L3 — не экономия, а обычный расход')
+  assert.equal(result.injected_tokens, 0)
+  assert.equal(memoryStats(store).tokens_saved_estimate, 0)
+  assert.equal(routeEvents(store).length, 1)
 })
 
 test('ошибки token-meter не ломают запись route', (t) => {
