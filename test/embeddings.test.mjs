@@ -310,9 +310,10 @@ test('async-канал API/Ollama: гибрид работает через sear
   assert.ok(block.block !== null)
   assert.ok(calls.length > 0)
 
-  // Новая запись после первого поиска получает вектор уже на следующем поиске,
-  // без перезагрузки плагина (инкрементальный backfill).
+  // Событие entries-changed помечает канал грязным; новый вектор считается
+  // на следующем поиске, без перезагрузки плагина.
   const added = add(store, 'Индексатор 2', 'Ещё один индексатор файлов').id
+  channel.entriesChanged()
   const again = await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })
   assert.ok(again.some((row) => row.id === added))
   assert.ok(store.listEmbeddings(provider.model).some((row) => row.entryId === added))
@@ -464,4 +465,37 @@ test('local-onnx с отсутствующей локальной моделью
   })
   await assert.rejects(() => provider.embed(['текст']), /локальная модель не найдена/)
   assert.equal(fetched, 0)
+})
+
+
+test('store уведомляет об изменениях записей (insert/update/invalidate) для backfill', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-changes-'))
+  const changes = []
+  const store = openStore({ dbPath: dir, namespace: 'demo', onChange: (change) => changes.push(change) })
+  t.after(() => { store.close(); rmSync(dir, { recursive: true, force: true }) })
+
+  const { id } = store.insertEntry({ kind: 'doc', title: 'Запись', text: 'текст', status: 'verified', confidence: 1, sourcePath: 'docs/a.md' })
+  store.updateEntry(id, { confidence: 0.9 })
+  store.invalidateBySource({ path: 'docs/a.md' })
+  assert.deepEqual(changes.map((change) => change.action), ['insert', 'update', 'invalidate'])
+  assert.equal(changes[0].ids[0], id)
+  assert.equal(changes[0].namespace, 'demo')
+})
+
+test('основной сервис эмитит memory/entries-changed при записи в store', async (t) => {
+  const { apply: pluginApply } = await import('../lib/index.js')
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-events-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  let service
+  const events = []
+  const ctx = {
+    on: () => {},
+    emit: (name, payload) => events.push({ name, payload }),
+    provide: (name, value) => { service = value },
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  pluginApply(ctx, { db_path: dir, namespace: 'demo' })
+  const store = service.storeFor(process.cwd())
+  store.insertEntry({ kind: 'doc', title: 'Событие', text: 'текст', status: 'verified', confidence: 1 })
+  assert.ok(events.some((event) => event.name === 'memory/entries-changed' && event.payload.ids.length === 1))
 })

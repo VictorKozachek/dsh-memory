@@ -89,15 +89,29 @@ export function createAsyncChannel({
   backfill = true,
   log = () => {},
 } = {}) {
+  const prepared = new WeakSet()
+  const known = new Set()
   return {
     name: 'embeddings',
     weight,
+    /**
+     * Событие `memory/entries-changed`: помечаем известные store как грязные,
+     * чтобы следующий поиск досчитал только новые/изменённые записи.
+     *
+     * @returns {void}
+     */
+    entriesChanged() {
+      for (const store of known) prepared.delete(store)
+    },
     async search({ store, query, limit = 20 } = {}) {
       if (!store || typeof store.listEmbeddings !== 'function' || typeof query !== 'string' || query.trim() === '') return []
-      // Досчитываем отсутствующие векторы перед каждым поиском: после write/
-      // reindex новые записи получают векторы уже на следующем поиске, а не
-      // только после перезагрузки. Если всё посчитано, list пуст и вызов дешёвый.
-      if (backfill) await backfillEmbeddings({ store, provider, model, batch_size, log })
+      known.add(store)
+      // Первый поиск/событие entries-changed — досчитываем отсутствующие
+      // векторы; обычный поиск не сканирует таблицу на каждом ходе.
+      if (backfill && !prepared.has(store)) {
+        await backfillEmbeddings({ store, provider, model, batch_size, log })
+        prepared.add(store)
+      }
       const { vectors } = await provider.embed([query])
       const queryVector = vectors?.[0]
       if (!(queryVector instanceof Float32Array) || queryVector.length === 0) return []
