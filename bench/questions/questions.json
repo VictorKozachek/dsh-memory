@@ -1,0 +1,102 @@
+[
+  {
+    "id": "q01",
+    "query": "Где хранится долговременная память проекта и как называется файл базы?",
+    "source": "docs/memory.md"
+  },
+  {
+    "id": "q02",
+    "query": "Из чего состоит провенанс записи: source_path и source_ref?",
+    "source": "docs/memory.md"
+  },
+  {
+    "id": "q03",
+    "query": "Как устроен мягкий каскад L0 L1 L2 L3?",
+    "source": "docs/cascade.md"
+  },
+  {
+    "id": "q04",
+    "query": "Что делает пресет triage и какой у него контракт ответа?",
+    "source": "docs/cascade.md"
+  },
+  {
+    "id": "q05",
+    "query": "Как инъекция памяти попадает в ход агента?",
+    "source": "docs/injection.md"
+  },
+  {
+    "id": "q06",
+    "query": "Сколько токенов бюджет блока памяти и сколько символов сообщения идёт в запрос?",
+    "source": "docs/injection.md"
+  },
+  {
+    "id": "q07",
+    "query": "Как ищет FTS5 и что делает санитайзер запроса?",
+    "source": "docs/search.md"
+  },
+  {
+    "id": "q08",
+    "query": "Чем matchMode any отличается от all и какой сниппет по умолчанию?",
+    "source": "docs/search.md"
+  },
+  {
+    "id": "q09",
+    "query": "Сколько дней живёт decision и как работает ленивое протухание?",
+    "source": "docs/ttl.md"
+  },
+  {
+    "id": "q10",
+    "query": "Какие TTL у fact и answer?",
+    "source": "docs/ttl.md"
+  },
+  {
+    "id": "q11",
+    "query": "Какие условия нужны для перевода записи в verified?",
+    "source": "docs/verification.md"
+  },
+  {
+    "id": "q12",
+    "query": "Почему ответ модели пишется как draft с confidence не выше 0.6?",
+    "source": "docs/verification.md"
+  },
+  {
+    "id": "q13",
+    "query": "Какие файлы обходит индексатор и как режет чанки?",
+    "source": "docs/indexer.md"
+  },
+  {
+    "id": "q14",
+    "query": "Как индексатор понимает, что файл изменился?",
+    "source": "docs/indexer.md"
+  },
+  {
+    "id": "q15",
+    "query": "Какие события пишутся в метрики и что такое hit-rate?",
+    "source": "docs/metrics.md"
+  },
+  {
+    "id": "q16",
+    "query": "Что такое injected_tokens и когда экономия считается на L2?",
+    "source": "docs/metrics.md"
+  },
+  {
+    "id": "q17",
+    "query": "Что такое namespace и как он выбирается по умолчанию?",
+    "source": "docs/namespaces.md"
+  },
+  {
+    "id": "q18",
+    "query": "Что будет при одном namespace на разные воркспейсы?",
+    "source": "docs/namespaces.md"
+  },
+  {
+    "id": "q19",
+    "query": "Какие ключи отсеиваются по форме и почему PEM ищется в начале строки?",
+    "source": "docs/key-filters.md"
+  },
+  {
+    "id": "q20",
+    "query": "Как отличить настоящий ключ от упоминания в документации?",
+    "source": "docs/key-filters.md"
+  }
+]
