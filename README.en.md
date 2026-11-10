@@ -259,8 +259,8 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 
 [docs/benchmark-real.md](docs/benchmark-real.md) contains exact numbers, misses,
 and comparisons with fixture 015 and plain `unicode61`. On the current corpus
-the lexical engine gets about 80% hit-rate and 76% savings (`unicode61`: about
-70% and 64%); the misses are broad semantic questions. Conclusion: lexical search is enough
+the lexical engine gets about 80% hit-rate and 77% savings (`unicode61`: about
+65% and 64%); the misses are broad semantic questions. Conclusion: lexical search is enough
 for exact terms, vectors are optional for the MVP (021/016). The benchmark
 always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
 affect `bench`.
