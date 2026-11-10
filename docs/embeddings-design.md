@@ -1,6 +1,7 @@
 # Дизайн: опциональный пакет эмбеддингов (`dsh-memory-embeddings`)
 
-Статус: дизайн-спайк задачи 021, вход в реализацию 016.
+Статус: дизайн-спайк задачи 021; реализация 016 — `packages/dsh-memory-embeddings`
+(см. §12).
 Дата решения: 2026-11-10. Основание: `.kanban/specs/002-rag-ingest.md`,
 [PLAN.md](../PLAN.md), отчёт [benchmark-real.md](benchmark-real.md).
 
@@ -272,3 +273,19 @@ embeddings: включены (provider=openai-compatible, model=text-embedding-3
    на фоновый бэкфилл; что делать при 429.
 8. **Композиция с Q&A-каналом 020** и с каскадом 012: где именно буст
    Q&A/вектора складываются, чтобы не переранжировать проверенные ответы.
+
+
+## 12. Что реализовано в 016 и чем отличается от дизайна
+
+- Пакет `packages/dsh-memory-embeddings` с собственным `dsh.bundle.patch`,
+  конфигом, провайдерами `local` (встроенный офлайн-хэш-эмбеддер
+  `local-hash-128`), `ollama` и `openai-compatible`, таблицей `embeddings`
+  (миграция 4 основного пакета), бэкфиллом и brute-force косинусом.
+- Основной пакет получил нейтральные точки `memory.storeFor`,
+  `memory.registerSearchChannel`, `channels` в `memory.search` и миграцию 4 —
+  без сетевого кода (тест `trust-boundary` остаётся зелёным).
+- Синхронный query-канал гибрида включён для `local`; для API/Ollama в этой
+  версии — только фоновый досчёт векторов (async query-канал — следующий шаг).
+- Нейросетевая локальная модель (ONNX/WASM) и ANN остаются открытыми
+  вопросами 021; отчёт [benchmark-embeddings.md](benchmark-embeddings.md)
+  фиксирует baseline и цену опции.

@@ -266,6 +266,18 @@ for exact terms, vectors are optional for the MVP (021/016). The benchmark
 always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
 affect `bench`.
 
+## Embeddings (optional)
+
+Disabled by default: search is pure FTS5. The optional
+[`packages/dsh-memory-embeddings`](packages/dsh-memory-embeddings/README.md)
+package adds local (offline, keyless) or OpenAI-compatible/Ollama embeddings,
+stores vectors in SQLite BLOBs and contributes a hybrid RRF BM25 + cosine
+channel via `memory.registerSearchChannel`. The main package gets no network
+code; all egress lives in the optional package, the key comes from env only, and
+`DSH_MEMORY_NO_NETWORK=1` blocks the network. Quality/latency vs FTS5:
+[docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); design and
+criteria: [docs/embeddings-design.md](docs/embeddings-design.md).
+
 ## Metrics
 
 | Goal | Metric | MVP target |
