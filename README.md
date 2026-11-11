@@ -211,6 +211,12 @@ dsh-memory:
   embeddings: { enabled: false, model: "" }   # legacy-поле; провайдеры — в dsh-memory-embeddings
   verify: { require_source_for_verified: true }
   router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
+  dispatcher:
+    enabled: false                                 # фаза 5, по умолчанию выключен
+    strategy: priority                             # single | priority | concat | vote
+    timeout_ms: 5000
+    default_role: ""                               # роль для подтемы без явной маршрутизации
+    roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:
     enabled: false                                 # мягкий каскад L1 → L2 (triage) → L3
     preset: triage                                 # presets/triage.json: дешёвая модель, ANSWER | NO_ANSWER
@@ -275,6 +281,17 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 буферизуется, L3 стримится; отмена/таймауты — `AbortSignal` и `timeout_ms`.
 Дизайн, точка входа и ограничения — [docs/router-design.md](docs/router-design.md);
 флаг выключен — поведение прежнее (прямой L3).
+
+## Диспетчер ролей (фаза 5)
+
+Экспериментальный `dispatcher` (по умолчанию выключен) после промаха L1 отдаёт
+ход ролям: реестр берётся из `dispatcher.roles`, провайдеры ролей регистрирует
+адаптер через `memory.registerRoleProvider(name, fn)`, planner — через
+`memory.registerDispatcherPlanner(fn)`. Если план не покрыт ролями, роль
+ошиблась/не ответила или ход отменён — hook не вмешивается, ход уходит на L3
+(или завершается по отмене). Ответ диспетчера добавляется в ход как
+plugin-сообщение `dsh-memory-dispatcher` и пишется в `metrics` как L2.
+Флаг выключен — поведение пакета прежнее; дизайн — [docs/roles-design.md](docs/roles-design.md).
 
 ## Эмбеддинги (опция)
 
