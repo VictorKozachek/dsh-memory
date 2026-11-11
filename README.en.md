@@ -219,6 +219,8 @@ dsh-memory:
     enabled: false                                 # phase 5, off by default
     strategy: priority                             # single | priority | concat | vote
     timeout_ms: 5000
+    plan_timeout_ms: 5000                          # planner timeout (026)
+    max_subtasks: 8                                # subtopic limit (026)
     default_role: ""                               # role for an unrouted subtopic
     roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:

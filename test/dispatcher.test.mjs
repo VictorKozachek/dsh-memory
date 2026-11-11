@@ -231,3 +231,21 @@ test('planner получает AbortSignal; невалидный реестр р
   assert.equal(broken.enabled, false)
   assert.equal((await broken.dispatch({ task: 'задача' })).fallback, true)
 })
+
+
+test('live dispatcher: plan_timeout_ms и max_subtasks из конфига', async () => {
+  const live = createLiveDispatcher({
+    config: { dispatcher: { enabled: true, plan_timeout_ms: 20, max_subtasks: 2, default_role: 'developer', roles: [role()] } },
+  })
+  live.registerProvider('developer', async ({ subtopic }) => ({ answer: subtopic.text, confidence: 0.9 }))
+  live.registerPlanner(() => new Promise(() => {}))
+  const startedAt = Date.now()
+  const timedOut = await live.dispatch({ task: 'задача' })
+  assert.equal(timedOut.fallback, true)
+  assert.ok(Date.now() - startedAt < 300)
+
+  live.registerPlanner(() => ['a', 'b', 'c'])
+  const limited = await live.dispatch({ task: 'задача' })
+  assert.equal(limited.fallback, false)
+  assert.equal(limited.answer.split('\n\n').length, 2)
+})
