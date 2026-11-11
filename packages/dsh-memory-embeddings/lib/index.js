@@ -122,7 +122,15 @@ export function apply(ctx, config = {}) {
     return
   }
 
-  for (const line of doctorReport(options, { provider })) log(ctx, line.level, line.message)
+  // Число векторов в doctor: store открывается из сервиса памяти для текущего
+  // воркспейса; если это не удалось, doctor всё равно печатает остальное.
+  let doctorStore = null
+  try {
+    doctorStore = typeof memory.storeFor === 'function' ? memory.storeFor(process.cwd()) : null
+  } catch {
+    doctorStore = null
+  }
+  for (const line of doctorReport(options, { provider, store: doctorStore, env: process.env })) log(ctx, line.level, line.message)
 
   try {
     // Канал получает store из каждого вызова memory.search — не замыкаем

@@ -142,10 +142,12 @@ test('apply: disabled ничего не регистрирует; local реги
   assert.equal(channels.length, 0)
   assert.ok(logs.some((line) => line.includes('выключены')))
 
+  add(store, 'Векторы', 'запись для doctor')
   apply(ctx, { enabled: true, provider: 'local', model: 'local-hash-128' })
   assert.equal(channels.length, 1)
   assert.equal(channels[0].name, 'embeddings')
   assert.ok(logs.some((line) => line.includes('локальные эмбеддинги')))
+  assert.ok(logs.some((line) => line.includes('векторов: 0, без векторов: 1')), logs.join('\n'))
 })
 
 test('apply: нет ключа API — предупреждение и без канала (FTS5)', (t) => {

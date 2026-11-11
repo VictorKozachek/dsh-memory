@@ -90,6 +90,8 @@ export function createLocalOnnxProvider({
     model,
     dim,
     cacheDir,
+    model_path,
+    allow_download,
     async embed(texts) {
       const embed = await ensureEmbedder()
       const vectors = await embed(texts)

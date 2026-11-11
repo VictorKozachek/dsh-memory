@@ -104,9 +104,11 @@ dsh-memory-embeddings:
 ## Doctor
 
 ```bash
-dsh-memory-embeddings doctor --config <файл.json>
+dsh-memory-embeddings doctor --config <файл.json> [--db <каталог БД> --namespace <имя>]
 ```
 
+С `--db/--namespace` открывает store через `@vkozachek/dsh-memory/store` и
+показывает число векторов; в профиле DSH то же делает лог при `apply`.
 Печатает, включён ли канал, провайдера/модель, `cache_dir` и статус модели
 (скачана/нет), размерность, число векторов и записей без векторов, наличие
 ключа в env (только имя), предупреждение о первой загрузке (~100 МБ из

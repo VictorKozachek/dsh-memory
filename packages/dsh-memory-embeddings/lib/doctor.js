@@ -8,16 +8,17 @@
 
 import { existsSync } from 'node:fs'
 
+import { networkAllowed } from './network.js'
 import { DEFAULT_CACHE_DIR, isModelCached } from './providers/local-onnx.js'
 
 /**
  * Собрать строки диагностики.
  *
  * @param {object} config — разрешённый конфиг пакета.
- * @param {{ provider?: object | null, store?: object | null }} [options] — провайдер и хранилище (для числа векторов).
+ * @param {{ provider?: object | null, store?: object | null, env?: object }} [options] — провайдер, хранилище, окружение.
  * @returns {Array<{ level: 'info' | 'warn', message: string }>} строки.
  */
-export function doctorReport(config, { provider = null, store = null } = {}) {
+export function doctorReport(config, { provider = null, store = null, env = process.env } = {}) {
   const lines = []
   if (!config.enabled) {
     lines.push({ level: 'info', message: 'embeddings: выключены (чистый FTS5)' })
@@ -32,20 +33,28 @@ export function doctorReport(config, { provider = null, store = null } = {}) {
     lines.push({ level: 'info', message: 'локальные эмбеддинги: сеть и ключи не используются' })
     if (provider.kind === 'local-onnx') {
       const cacheDir = provider.cacheDir ?? config.cache_dir ?? DEFAULT_CACHE_DIR
-      const cached = provider.model_path !== undefined && provider.model_path !== ''
-        ? existsSync(provider.model_path)
-        : isModelCached(cacheDir, provider.model)
-      lines.push({ level: 'info', message: `local-onnx: cache_dir=${cacheDir}, статус=${cached ? 'скачана' : 'нет в кэше'}` })
+      const modelPath = provider.model_path ?? config.model_path ?? ''
+      const cached = modelPath !== '' ? existsSync(modelPath) : isModelCached(cacheDir, provider.model)
+      lines.push({
+        level: 'info',
+        message: `local-onnx: cache_dir=${cacheDir}${modelPath === '' ? '' : `, model_path=${modelPath}`}, статус=${cached ? 'скачана' : 'нет в кэше'}`,
+      })
       if (typeof provider.dim === 'number' && provider.dim > 0) {
         lines.push({ level: 'info', message: `local-onnx: размерность=${provider.dim}` })
       }
-      if (!cached && config.allow_download === true) {
-        lines.push({
-          level: 'warn',
-          message: `первая загрузка модели ${provider.model}: ~100 МБ из Hugging Face в ${cacheDir} (allow_download=true)`,
-        })
-      } else if (!cached) {
-        lines.push({ level: 'warn', message: `модель ${provider.model} не найдена в ${cacheDir}; allow_download=false — остаётся FTS5` })
+      if (!cached) {
+        if (modelPath !== '') {
+          lines.push({ level: 'warn', message: `local-onnx: model_path не найден: ${modelPath}; остаётся FTS5` })
+        } else if (!networkAllowed(env)) {
+          lines.push({ level: 'warn', message: `DSH_MEMORY_NO_NETWORK=1: скачивание модели ${provider.model} запрещено; остаётся FTS5` })
+        } else if (config.allow_download === true) {
+          lines.push({
+            level: 'warn',
+            message: `первая загрузка модели ${provider.model}: ~100 МБ из Hugging Face в ${cacheDir} (allow_download=true)`,
+          })
+        } else {
+          lines.push({ level: 'warn', message: `модель ${provider.model} не найдена в ${cacheDir}; allow_download=false — остаётся FTS5` })
+        }
       }
     }
   } else if (provider.kind === 'ollama') {

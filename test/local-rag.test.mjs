@@ -73,7 +73,8 @@ test('ошибка эмбеддинга не ломает поиск; entries-ch
   assert.ok(first.some((row) => row.id === id))
   assert.equal(store.listEmbeddings(provider.model).length, 0)
   fail = false
-  channel.entriesChanged()
+  // Без ручного entriesChanged: неудачный backfill не помечает store готовым,
+  // поэтому следующий поиск сам повторяет досчёт.
   const results = await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })
   assert.ok(results.some((row) => row.id === id))
   assert.ok(store.listEmbeddings(provider.model).some((row) => row.entryId === id))
@@ -134,4 +135,64 @@ test('doctorCommand с store показывает число векторов и
   assert.match(text, /local-onnx/)
   assert.match(text, /статус=нет в кэше/)
   assert.match(text, /векторов: 0, без векторов: 1/)
+})
+
+test('doctor: локальный model_path считается скачанным; NO_NETWORK не обещает загрузку', (t) => {
+  const { store } = tempStore(t)
+  const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-memory-doctor-paths-'))
+  const modelDir = mkdtempSync(join(tmpdir(), 'dsh-memory-doctor-model-'))
+  t.after(() => { rmSync(cacheDir, { recursive: true, force: true }); rmSync(modelDir, { recursive: true, force: true }) })
+
+  const withPath = resolveConfig({
+    enabled: true,
+    provider: 'local-onnx',
+    model: MODEL,
+    model_path: modelDir,
+    cache_dir: cacheDir,
+    allow_download: false,
+  }).config
+  const pathLines = doctorReport(withPath, {
+    provider: { kind: 'local-onnx', model: MODEL, cacheDir, model_path: modelDir, dim: 384 },
+    store,
+    env: { DSH_MEMORY_NO_NETWORK: '1' },
+  })
+  assert.ok(pathLines.some((line) => line.message.includes('статус=скачана')))
+  assert.ok(pathLines.some((line) => line.message.includes(`model_path=${modelDir}`)))
+  assert.ok(!pathLines.some((line) => line.message.includes('первая загрузка')))
+
+  const noNetwork = resolveConfig({
+    enabled: true,
+    provider: 'local-onnx',
+    model: MODEL,
+    cache_dir: cacheDir,
+    allow_download: true,
+  }).config
+  const blockedLines = doctorReport(noNetwork, {
+    provider: { kind: 'local-onnx', model: MODEL, cacheDir, dim: 384 },
+    store,
+    env: { DSH_MEMORY_NO_NETWORK: '1' },
+  })
+  assert.ok(blockedLines.some((line) => line.message.includes('DSH_MEMORY_NO_NETWORK=1')))
+  assert.ok(!blockedLines.some((line) => line.message.includes('первая загрузка')))
+})
+
+test('doctorCommand --db открывает store через openStore и показывает векторы', (t) => {
+  const cacheDir = mkdtempSync(join(tmpdir(), 'dsh-memory-doctor-db-'))
+  t.after(() => rmSync(cacheDir, { recursive: true, force: true }))
+  const configFile = join(cacheDir, 'config.json')
+  writeFileSync(configFile, JSON.stringify({ enabled: true, provider: 'local', model: 'local-hash-128' }))
+  const fakeStore = {
+    listEmbeddings: () => [{ entryId: 1 }],
+    listEntriesWithoutEmbedding: () => [],
+    close: () => {},
+  }
+  let opened = null
+  const { code, lines } = doctorCommand(
+    ['--config', configFile, '--db', cacheDir, '--namespace', 'demo'],
+    {},
+    { openStore: (options) => { opened = options; return fakeStore } },
+  )
+  assert.equal(code, 0)
+  assert.deepEqual(opened, { dbPath: cacheDir, namespace: 'demo' })
+  assert.match(lines.join('\n'), /векторов: 1, без векторов: 0/)
 })
