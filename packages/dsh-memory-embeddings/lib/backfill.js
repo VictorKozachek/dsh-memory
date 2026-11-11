@@ -28,6 +28,7 @@ export async function backfillEmbeddings({ store, provider, model = provider.mod
   const rows = store.listEntriesWithoutEmbedding(model)
   let embedded = 0
   let failed = 0
+  if (rows.length > 0) log('info', `embeddings: досчёт векторов ${rows.length} записей (модель ${model})`)
   for (let offset = 0; offset < rows.length; offset += size) {
     const batch = rows.slice(offset, offset + size)
     try {
@@ -45,6 +46,8 @@ export async function backfillEmbeddings({ store, provider, model = provider.mod
       failed += batch.length
       log('warn', `embeddings: батч ${offset / size + 1} не посчитан: ${error instanceof Error ? error.message : String(error)}`)
     }
+    log('info', `embeddings: прогресс ${Math.min(offset + size, rows.length)}/${rows.length}`)
   }
+  if (rows.length > 0) log('info', `embeddings: досчёт завершён (векторов ${embedded}, ошибок ${failed})`)
   return { embedded, failed }
 }
