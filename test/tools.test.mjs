@@ -6,10 +6,9 @@
  */
 
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
 import * as plugin from '../lib/index.js'
@@ -164,17 +163,12 @@ test('без сервиса tools плагин грузится и не реги
   assert.ok(memory)
 })
 
-test('fallback: raw-схемы проходят реальный assertSupportedJsonSchema и аргументы валидируются', async (t) => {
-  const harness = '/Users/victor/projects/deepseek-harness/packages/core/tools/lib/index.js'
-  if (!existsSync(harness)) {
-    t.skip('DeepSeek Harness checkout недоступен')
-    return
-  }
-  const { assertSupportedJsonSchema, validateJsonSchemaValue } = await import(pathToFileURL(harness).href)
+test('fallback: raw-схемы проходят контракт ToolDefinition и аргументы валидируются', async (t) => {
   const { registered, byName, exec, memory, dir } = setup(t)
   for (const definition of registered) {
-    assert.doesNotThrow(() => assertSupportedJsonSchema(definition.parameters), definition.name)
-    assert.doesNotThrow(() => assertSupportedJsonSchema(definition.output.schema), definition.name)
+    assertRawToolSchema(definition.parameters, `${definition.name}.parameters`)
+    assertRawToolSchema(definition.output.schema, `${definition.name}.output.schema`)
+    assert.equal(typeof definition.execute, 'function')
   }
 
   // Fallback не полагается на валидатор DSH: execute сам проверяет аргументы.
@@ -187,7 +181,60 @@ test('fallback: raw-схемы проходят реальный assertSupported
     kind: 'fact', title: 'Схема', text: 'выход проходит схему', status: 'verified', confidence: 1, sourcePath: 'docs/schema.md',
   })
   const searchOutput = await byName.get('memory.search').execute({ query: 'схема' }, exec)
-  assert.deepEqual(validateJsonSchemaValue(byName.get('memory.search').output.schema, searchOutput, ''), [])
+  assert.deepEqual(validateRawValue(byName.get('memory.search').output.schema, searchOutput, ''), [])
   const statsOutput = await byName.get('memory.stats').execute({}, exec)
-  assert.deepEqual(validateJsonSchemaValue(byName.get('memory.stats').output.schema, statsOutput, ''), [])
+  assert.deepEqual(validateRawValue(byName.get('memory.stats').output.schema, statsOutput, ''), [])
 })
+
+/** Портируемый контракт raw ToolDefinition: без author-only required:true. */
+function assertRawToolSchema(schema, path) {
+  assert.ok(schema !== null && typeof schema === 'object' && !Array.isArray(schema), `${path}: схема должна быть объектом`)
+  assert.ok(!Object.hasOwn(schema, 'required') || Array.isArray(schema.required), `${path}: required должен быть массивом`)
+  if (Object.hasOwn(schema, 'oneOf')) {
+    assert.ok(Array.isArray(schema.oneOf) && schema.oneOf.length >= 2, `${path}: oneOf должен быть массивом`)
+    schema.oneOf.forEach((branch, index) => assertRawToolSchema(branch, `${path}.oneOf[${index}]`))
+  }
+  if (schema.type === 'object') {
+    if (Object.hasOwn(schema, 'additionalProperties')) {
+      assert.equal(typeof schema.additionalProperties, 'boolean', `${path}: additionalProperties должен быть boolean`)
+    }
+    for (const [key, child] of Object.entries(schema.properties ?? {})) {
+      assertRawToolSchema(child, `${path}.properties.${key}`)
+      assert.ok(typeof child.required !== 'boolean', `${path}.properties.${key}: author-only required не допускается`)
+    }
+  }
+  if (schema.type === 'array') {
+    assert.ok(schema.items !== undefined, `${path}: items обязателен`)
+    assertRawToolSchema(schema.items, `${path}.items`)
+  }
+  if (schema.type !== undefined) {
+    assert.ok(['object', 'array', 'string', 'number', 'integer', 'boolean', 'null'].includes(schema.type), `${path}: неизвестный type ${schema.type}`)
+  }
+}
+
+/** Минимальная проверка значения по raw-схеме для теста. */
+function validateRawValue(schema, value, path) {
+  const violations = []
+  if (schema.oneOf !== undefined) {
+    if (schema.oneOf.every((branch) => validateRawValue(branch, value, path).length > 0)) violations.push(`${path}: oneOf`)
+    return violations
+  }
+  if (schema.type === 'object') {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) violations.push(`${path}: object`)
+    else {
+      for (const key of schema.required ?? []) if (value[key] === undefined) violations.push(`${path}.${key}: required`)
+      for (const [key, child] of Object.entries(schema.properties ?? {})) {
+        if (value[key] !== undefined) violations.push(...validateRawValue(child, value[key], `${path}.${key}`))
+      }
+    }
+  } else if (schema.type === 'array') {
+    if (!Array.isArray(value)) violations.push(`${path}: array`)
+    else value.forEach((item, index) => violations.push(...validateRawValue(schema.items, item, `${path}[${index}]`)))
+  } else if (schema.type === 'string' && typeof value !== 'string') violations.push(`${path}: string`)
+  else if (schema.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) violations.push(`${path}: number`)
+  else if (schema.type === 'integer' && !Number.isInteger(value)) violations.push(`${path}: integer`)
+  else if (schema.type === 'boolean' && typeof value !== 'boolean') violations.push(`${path}: boolean`)
+  else if (schema.type === 'null' && value !== null) violations.push(`${path}: null`)
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) violations.push(`${path}: enum`)
+  return violations
+}
