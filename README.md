@@ -215,6 +215,8 @@ dsh-memory:
     enabled: false                                 # фаза 5, по умолчанию выключен
     strategy: priority                             # single | priority | concat | vote
     timeout_ms: 5000
+    plan_timeout_ms: 5000                          # таймаут planner (026)
+    max_subtasks: 8                                # лимит подтем (026)
     default_role: ""                               # роль для подтемы без явной маршрутизации
     roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:
