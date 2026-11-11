@@ -73,6 +73,13 @@ test('дефолты повторяют блок dsh-memory из README', () => 
     write_back: true,
   })
   assert.deepEqual(config.router, { enabled: false, confidence_threshold: 0.6, timeout_ms: 5_000 })
+  assert.deepEqual(config.dispatcher, {
+    enabled: false,
+    strategy: 'priority',
+    timeout_ms: 5_000,
+    default_role: '',
+    roles: [],
+  })
 })
 
 test('отсутствующий конфиг — это дефолты без предупреждений', () => {
@@ -94,6 +101,7 @@ test('конфиг ряда накладывается поверх дефолт
     verify: { require_source_for_verified: false },
     cascade: { enabled: true, model: 'cheap-model', max_tokens: 200 },
     router: { enabled: true, confidence_threshold: 0.8, timeout_ms: 250 },
+    dispatcher: { enabled: true, strategy: 'vote', timeout_ms: 300, default_role: 'reviewer', roles: [{ name: 'reviewer' }] },
   }, { env: {} })
 
   assert.deepEqual(warnings, [])
@@ -118,6 +126,13 @@ test('конфиг ряда накладывается поверх дефолт
     write_back: true,
   })
   assert.deepEqual(config.router, { enabled: true, confidence_threshold: 0.8, timeout_ms: 250 })
+  assert.deepEqual(config.dispatcher, {
+    enabled: true,
+    strategy: 'vote',
+    timeout_ms: 300,
+    default_role: 'reviewer',
+    roles: [{ name: 'reviewer' }],
+  })
 })
 
 test('невалидный конфиг не роняет разбор: дефолты и предупреждения', () => {
@@ -140,6 +155,7 @@ test('каждое невалидное поле заменяется дефол
     verify: { require_source_for_verified: 'no' },
     cascade: { enabled: 'yes', preset: 7, model: 42, max_tokens: 0, write_back: 'no' },
     router: { enabled: 'yes', confidence_threshold: 2, timeout_ms: 0 },
+    dispatcher: { enabled: 'yes', strategy: 'bogus', timeout_ms: 0, default_role: 7, roles: 'developer' },
   }, { env: {} })
 
   assert.deepEqual(config, DEFAULT_CONFIG)
@@ -165,6 +181,11 @@ test('каждое невалидное поле заменяется дефол
     'router.enabled',
     'router.confidence_threshold',
     'router.timeout_ms',
+    'dispatcher.enabled',
+    'dispatcher.strategy',
+    'dispatcher.timeout_ms',
+    'dispatcher.default_role',
+    'dispatcher.roles',
   ]) {
     assert.ok(warnings.some((warning) => warning.includes(field)), `нет предупреждения про ${field}: ${JSON.stringify(warnings)}`)
   }

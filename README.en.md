@@ -215,6 +215,12 @@ dsh-memory:
   embeddings: { enabled: false, model: "" }   # legacy field; providers live in dsh-memory-embeddings
   verify: { require_source_for_verified: true }
   router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
+  dispatcher:
+    enabled: false                                 # phase 5, off by default
+    strategy: priority                             # single | priority | concat | vote
+    timeout_ms: 5000
+    default_role: ""                               # role for an unrouted subtopic
+    roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:
     enabled: false                                 # soft cascade L1 -> L2 (triage) -> L3
     preset: triage                                 # presets/triage.json: cheap model, ANSWER | NO_ANSWER
@@ -279,6 +285,18 @@ L2 is buffered, L3 streams; cancellation/timeouts use `AbortSignal` and
 `timeout_ms`. Design, entry point and limits:
 [docs/router-design.md](docs/router-design.md); with the flag off behaviour is
 unchanged (direct L3).
+
+## Role dispatcher (phase 5)
+
+The experimental `dispatcher` (off by default) hands a turn to roles after an L1
+miss: the registry comes from `dispatcher.roles`, role providers are registered
+by an adapter via `memory.registerRoleProvider(name, fn)`, and the planner via
+`memory.registerDispatcherPlanner(fn)`. If the plan is not covered, a role
+fails/times out, or the turn is cancelled, the hook stays out of the way and the
+turn proceeds to L3 (or ends by cancellation). A dispatcher answer is added as a
+`dsh-memory-dispatcher` plugin message and recorded in `metrics` as L2. With the
+flag off the package behaviour is unchanged; design:
+[docs/roles-design.md](docs/roles-design.md).
 
 ## Embeddings (optional)
 

@@ -140,7 +140,11 @@ Human override: человек может выбрать ответ роли; э
   - выполнение параллельное с timeout/отменой, ошибки собираются;
   - `aggregateResults(results, {strategy, rolePriority})` — чистая функция;
   - при отсутствии ответов/неразрешённом конфликте — `{fallback: 'L3'}`.
-- Прототип не подключён к `apply`/hook и не меняет дефолт.
+- Прототип `lib/roles.js` не меняет дефолт; живая обвязка 025 —
+  `lib/live-dispatcher.js`: реестр из `dispatcher.roles`, провайдеры через
+  `memory.registerRoleProvider`, planner через `memory.registerDispatcherPlanner`,
+  hook вызывает `dispatch` только после промаха L1 и только при
+  `dispatcher.enabled:true`; fallback — обычный L3, отмена — без L3.
 
 ## 6. Риски
 
