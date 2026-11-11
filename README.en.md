@@ -221,6 +221,7 @@ dsh-memory:
     timeout_ms: 5000
     plan_timeout_ms: 5000                          # planner timeout (026)
     max_subtasks: 8                                # subtopic limit (026)
+    shared_namespace: false                        # roles write to their own namespace (029)
     default_role: ""                               # role for an unrouted subtopic
     roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:
@@ -296,8 +297,11 @@ by an adapter via `memory.registerRoleProvider(name, fn)`, and the planner via
 `memory.registerDispatcherPlanner(fn)`. If the plan is not covered, a role
 fails/times out, or the turn is cancelled, the hook stays out of the way and the
 turn proceeds to L3 (or ends by cancellation). A dispatcher answer is added as a
-`dsh-memory-dispatcher` plugin message and recorded in `metrics` as L2. With the
-flag off the package behaviour is unchanged; design:
+`dsh-memory-dispatcher` plugin message and recorded in `metrics` as L2. Role
+write-back (`memory.writeRole`) is `draft` only with `author: role:<name>` and
+`confidence ≤ 0.6`, in the role namespace (or the shared one when
+`dispatcher.shared_namespace: true`); `verified` is only reachable through
+`memory.verify`. With the flag off the package behaviour is unchanged; design:
 [docs/roles-design.md](docs/roles-design.md).
 
 ## Embeddings (optional)
