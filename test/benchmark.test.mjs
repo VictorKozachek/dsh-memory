@@ -22,6 +22,7 @@ import {
   loadBenchQuestions,
   renderBenchmarkReport,
   runBenchmark,
+  runBenchmarkAsync,
   writeBenchmarkReport,
 } from '../lib/benchmark.js'
 import { main } from '../lib/cli.js'
@@ -156,4 +157,21 @@ test('отчёт сравнения воспроизводится команд�
   assert.match(report, /Сравнение движков/)
   assert.match(report, /unicode61 \(чистый\)/)
   assert.match(report, /цели достигнуты на фикстуре/)
+})
+
+
+test('runBenchmarkAsync без каналов совпадает с синхронным бенчмарком', async () => {
+  const syncBench = createBenchStore()
+  const asyncBench = createBenchStore()
+  try {
+    const sync = runBenchmark({ store: syncBench.store })
+    const asyncResult = await runBenchmarkAsync({ store: asyncBench.store })
+    assert.equal(asyncResult.hitRate, sync.hitRate)
+    assert.equal(asyncResult.tokensBefore, sync.tokensBefore)
+    assert.equal(asyncResult.tokensAfter, sync.tokensAfter)
+    assert.equal(asyncResult.perQuestion.length, sync.perQuestion.length)
+  } finally {
+    syncBench.dispose()
+    asyncBench.dispose()
+  }
 })

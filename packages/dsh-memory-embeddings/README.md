@@ -27,7 +27,7 @@ dsh-memory-embeddings:
   batch_size: 32
   timeout_ms: 5000
   max_retries: 2
-  hybrid_weight: 0.5
+  hybrid_weight: 0.1
 ```
 
 Примеры:

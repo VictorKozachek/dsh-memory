@@ -41,7 +41,8 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # затем перезап
   `@vkozachek/dsh-memory-embeddings` включает локальный RAG по умолчанию
   (multilingual-e5-small, веса скачиваются в `~/.dsh/memory/models` при первом
   использовании), облачные провайдеры — опция; дизайн и границы доверия —
-  [docs/embeddings-design.md](docs/embeddings-design.md).
+  [docs/embeddings-design.md](docs/embeddings-design.md), приёмка локального
+  RAG — [docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
 ### Первый запрос
 

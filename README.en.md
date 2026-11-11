@@ -49,7 +49,8 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # then restart DSH Web
   auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
 - vectors are not part of the main package: an optional
   `@vkozachek/dsh-memory-embeddings` package (off by default) owns the provider or local
-  model; design and trust boundaries are in [docs/embeddings-design.md](docs/embeddings-design.md).
+  model; design and trust boundaries are in [docs/embeddings-design.md](docs/embeddings-design.md), local RAG acceptance:
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
 ### First query
 
@@ -322,7 +323,8 @@ code; all egress lives in the optional package, the key comes from env only, and
 `DSH_MEMORY_NO_NETWORK=1` blocks the network. Quality/latency vs FTS5:
 [docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); diagnostics:
 `dsh-memory-embeddings doctor --config <file.json>`; design and criteria:
-[docs/embeddings-design.md](docs/embeddings-design.md).
+[docs/embeddings-design.md](docs/embeddings-design.md), local RAG acceptance:
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
 The main package's `memory.search` is **async** (it waits for embedding
 channels); `memory.searchSync` is the synchronous variant for CLI/benchmarks
