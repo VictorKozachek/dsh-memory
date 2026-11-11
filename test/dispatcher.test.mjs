@@ -158,6 +158,11 @@ test('hook+AgentLoop: флаг on, ответ диспетчера обслуж�
   assert.deepEqual(calls, ['L2'])
   assert.equal(result.layer, 'L2')
   assert.equal(result.answer, 'роль: сделай API')
+  const [dispatchMetric] = memory.storeFor(dir).listMetrics({ event: 'dispatch' })
+  assert.equal(dispatchMetric.payload.fallback, false)
+  assert.deepEqual(dispatchMetric.payload.roles, ['developer'])
+  assert.equal(dispatchMetric.payload.subtopics, 1)
+  assert.equal(typeof dispatchMetric.payload.latency_ms, 'number')
 
 })
 
@@ -176,6 +181,9 @@ test('hook+AgentLoop: нет провайдера — fallback на L3', async (
   assert.equal(result.layer, 'L3')
   assert.ok(memory.dispatcherEnabled)
   assert.ok(logs.some((line) => line.includes('dispatcher fallback')), logs.join('\n'))
+  const [dispatchMetric] = memory.storeFor(dir).listMetrics({ event: 'dispatch' })
+  assert.equal(dispatchMetric.payload.fallback, true)
+  assert.match(dispatchMetric.payload.reason, /не ответили|план/)
 })
 
 test('hook+AgentLoop: отмена отменяет диспетчер и не уходит в L3', async (t) => {

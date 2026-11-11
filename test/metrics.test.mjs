@@ -16,6 +16,7 @@ import {
   METRIC_EVENTS,
   memoryStats,
   queryHash,
+  recordDispatchMetric,
   recordSearchMetric,
   estimateSavedTokens,
 } from '../lib/metrics.js'
@@ -131,6 +132,13 @@ test('stats на пустой базе — нули, без NaN и исключ�
     hit_rate: 0,
     injected_tokens: 0,
     tokens_saved_estimate: 0,
+    dispatch: {
+      count: 0,
+      fallback_rate: 0,
+      p50_ms: null,
+      p95_ms: null,
+      by_role: {},
+    },
   })
 })
 
@@ -181,8 +189,45 @@ test('stats не падает на битых и старых событиях',
   assert.equal(stats.injected_tokens, 0)
 })
 
+test('recordDispatchMetric: без текста запроса, роли/длительности/fallback', (t) => {
+  const store = tempStore(t)
+  const payload = recordDispatchMetric(store, {
+    subtopics: 2,
+    roles: ['developer', 'reviewer', 'developer'],
+    durationsMs: { developer: 12.4, reviewer: 30, broken: 'x' },
+    strategy: 'vote',
+    fallback: true,
+    reason: 'роли не ответили (1)',
+    latencyMs: 42.6,
+  })
+  assert.deepEqual(payload.roles, ['developer', 'reviewer'])
+  assert.deepEqual(payload.durations_ms, { developer: 12, reviewer: 30 })
+  assert.equal(payload.fallback, true)
+  assert.equal(payload.latency_ms, 43)
+  assert.ok(!JSON.stringify(payload).includes('query'))
+  const [metric] = store.listMetrics({ event: 'dispatch' })
+  assert.equal(metric.event, 'dispatch')
+  assert.equal(metric.payload.subtopics, 2)
+  assert.equal(metric.payload.strategy, 'vote')
+})
+
+test('stats: dispatch fallback rate и p50/p95 по ролям', (t) => {
+  const store = tempStore(t)
+  recordDispatchMetric(store, { subtopics: 1, roles: ['developer'], durationsMs: { developer: 10 }, fallback: false, latencyMs: 10 })
+  recordDispatchMetric(store, { subtopics: 1, roles: ['developer'], durationsMs: { developer: 20 }, fallback: true, latencyMs: 30 })
+  recordDispatchMetric(store, { subtopics: 1, roles: ['reviewer'], durationsMs: { reviewer: 40 }, fallback: true, latencyMs: 50 })
+
+  const stats = memoryStats(store)
+  assert.equal(stats.dispatch.count, 3)
+  assert.equal(stats.dispatch.fallback_rate, 0.667)
+  assert.equal(stats.dispatch.p50_ms, 30)
+  assert.equal(stats.dispatch.p95_ms, 48)
+  assert.deepEqual(stats.dispatch.by_role.developer, { count: 2, p50_ms: 15, p95_ms: 19.5 })
+  assert.deepEqual(stats.dispatch.by_role.reviewer, { count: 1, p50_ms: 40, p95_ms: 40 })
+})
+
 test('METRIC_EVENTS перечисляет события памяти', () => {
-  for (const event of ['search', 'write', 'verify', 'route']) {
+  for (const event of ['search', 'write', 'verify', 'route', 'dispatch']) {
     assert.ok(METRIC_EVENTS.includes(event))
   }
 })
