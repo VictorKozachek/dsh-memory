@@ -56,7 +56,25 @@ test('apply регистрирует пять memory.* с входными сх�
   assert.equal(search.parameters.query.required, true)
   assert.deepEqual(search.parameters.status.enum, ['verified', 'all'])
   assert.match(search.description, /verified/i)
-  assert.ok(search.output.schema)
+  const item = search.output.schema.items
+  assert.deepEqual(Object.keys(item.properties).sort(), [
+    'confidence', 'id', 'score', 'snippet', 'source_path', 'source_ref', 'status', 'title',
+  ])
+  assert.equal(item.properties.id.required, true)
+  assert.equal(item.properties.title.required, true)
+  assert.equal(item.properties.snippet.required, true)
+  assert.deepEqual(item.properties.source_path.oneOf.map((branch) => branch.type), ['string', 'null'])
+  assert.deepEqual(item.properties.status.enum, ['verified', 'draft'])
+  const statsSchema = byName.get('memory.stats').output.schema
+  assert.deepEqual(Object.keys(statsSchema.properties).sort(), [
+    'by_status', 'dispatch', 'entries', 'hit_rate', 'injected_tokens', 'tokens_saved_estimate',
+  ])
+  assert.equal(statsSchema.properties.entries.required, true)
+  assert.deepEqual(Object.keys(statsSchema.properties.by_status.properties).sort(), ['draft', 'stale', 'verified'])
+  assert.deepEqual(Object.keys(statsSchema.properties.dispatch.properties).sort(), [
+    'by_role', 'count', 'fallback_rate', 'p50_ms', 'p95_ms',
+  ])
+  assert.deepEqual(statsSchema.properties.dispatch.properties.p50_ms.oneOf.map((branch) => branch.type), ['number', 'null'])
   assert.equal(byName.get('memory.write').parameters.kind.required, true)
   assert.deepEqual(byName.get('memory.write').parameters.status.enum, ['draft'])
   assert.equal(byName.get('memory.verify').parameters.verified_by.required, true)
