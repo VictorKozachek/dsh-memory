@@ -6,9 +6,10 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
 import * as plugin from '../lib/index.js'
@@ -53,31 +54,34 @@ test('apply регистрирует пять memory.* с входными сх�
     'memory.write',
   ])
   const search = byName.get('memory.search')
-  assert.equal(search.parameters.query.required, true)
-  assert.deepEqual(search.parameters.status.enum, ['verified', 'all'])
+  assert.equal(search.parameters.type, 'object')
+  assert.ok(search.parameters.required.includes('query'))
+  assert.deepEqual(search.parameters.properties.status.enum, ['verified', 'all'])
   assert.match(search.description, /verified/i)
   const item = search.output.schema.items
   assert.deepEqual(Object.keys(item.properties).sort(), [
     'confidence', 'id', 'score', 'snippet', 'source_path', 'source_ref', 'status', 'title',
   ])
-  assert.equal(item.properties.id.required, true)
-  assert.equal(item.properties.title.required, true)
-  assert.equal(item.properties.snippet.required, true)
+  assert.deepEqual(item.required.sort(), ['confidence', 'id', 'score', 'snippet', 'status', 'title'])
+  assert.ok(item.required.includes('id'))
+  assert.ok(item.required.includes('title'))
+  assert.ok(item.required.includes('snippet'))
   assert.deepEqual(item.properties.source_path.oneOf.map((branch) => branch.type), ['string', 'null'])
   assert.deepEqual(item.properties.status.enum, ['verified', 'draft'])
   const statsSchema = byName.get('memory.stats').output.schema
   assert.deepEqual(Object.keys(statsSchema.properties).sort(), [
     'by_status', 'dispatch', 'entries', 'hit_rate', 'injected_tokens', 'tokens_saved_estimate',
   ])
-  assert.equal(statsSchema.properties.entries.required, true)
+  assert.ok(statsSchema.required.includes('entries'))
+  assert.ok(statsSchema.properties.by_status.required.includes('draft'))
   assert.deepEqual(Object.keys(statsSchema.properties.by_status.properties).sort(), ['draft', 'stale', 'verified'])
   assert.deepEqual(Object.keys(statsSchema.properties.dispatch.properties).sort(), [
     'by_role', 'count', 'fallback_rate', 'p50_ms', 'p95_ms',
   ])
   assert.deepEqual(statsSchema.properties.dispatch.properties.p50_ms.oneOf.map((branch) => branch.type), ['number', 'null'])
-  assert.equal(byName.get('memory.write').parameters.kind.required, true)
-  assert.deepEqual(byName.get('memory.write').parameters.status.enum, ['draft'])
-  assert.equal(byName.get('memory.verify').parameters.verified_by.required, true)
+  assert.ok(byName.get('memory.write').parameters.required.includes('kind'))
+  assert.deepEqual(byName.get('memory.write').parameters.properties.status.enum, ['draft'])
+  assert.ok(byName.get('memory.verify').parameters.required.includes('verified_by'))
   assert.equal(typeof byName.get('memory.stats').execute, 'function')
 })
 
@@ -158,4 +162,32 @@ test('без сервиса tools плагин грузится и не реги
   const { registered, memory } = setup(t, { withTools: false })
   assert.equal(registered.length, 0)
   assert.ok(memory)
+})
+
+test('fallback: raw-схемы проходят реальный assertSupportedJsonSchema и аргументы валидируются', async (t) => {
+  const harness = '/Users/victor/projects/deepseek-harness/packages/core/tools/lib/index.js'
+  if (!existsSync(harness)) {
+    t.skip('DeepSeek Harness checkout недоступен')
+    return
+  }
+  const { assertSupportedJsonSchema, validateJsonSchemaValue } = await import(pathToFileURL(harness).href)
+  const { registered, byName, exec, memory, dir } = setup(t)
+  for (const definition of registered) {
+    assert.doesNotThrow(() => assertSupportedJsonSchema(definition.parameters), definition.name)
+    assert.doesNotThrow(() => assertSupportedJsonSchema(definition.output.schema), definition.name)
+  }
+
+  // Fallback не полагается на валидатор DSH: execute сам проверяет аргументы.
+  await assert.rejects(() => byName.get('memory.search').execute({}, exec), /invalid arguments: query/)
+  await assert.rejects(() => byName.get('memory.search').execute({ query: 'x', k: '1' }, exec), /k must be a number/)
+  await assert.rejects(() => byName.get('memory.search').execute({ query: 'x', status: 'stale' }, exec), /status must be one of/)
+
+  // Реальные выходы проходят output-схему (не только объявлены).
+  memory.storeFor(dir).insertEntry({
+    kind: 'fact', title: 'Схема', text: 'выход проходит схему', status: 'verified', confidence: 1, sourcePath: 'docs/schema.md',
+  })
+  const searchOutput = await byName.get('memory.search').execute({ query: 'схема' }, exec)
+  assert.deepEqual(validateJsonSchemaValue(byName.get('memory.search').output.schema, searchOutput, ''), [])
+  const statsOutput = await byName.get('memory.stats').execute({}, exec)
+  assert.deepEqual(validateJsonSchemaValue(byName.get('memory.stats').output.schema, statsOutput, ''), [])
 })
