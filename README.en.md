@@ -143,8 +143,10 @@ snippets (lexical engine and `verified` status only). Plain `unicode61` remains 
 | `memory.write` | store distilled knowledge | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
 | `memory.invalidate` | mark dependent entries stale | `{ path?, ref? }` → `{ affected }` |
 | `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate }` |
+| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
+Tools are registered in `ctx.tools` when the `tools` service is present; without
+it the plugin loads as before (`ctx.memory` API modules stay available).
 `memory.search` returns `verified` entries by default; `status: "all"` adds
 `draft` entries marked by status, and snippets are truncated to 300 characters —
 a pointer, never the document.
