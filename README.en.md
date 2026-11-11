@@ -4,12 +4,14 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: MVP implemented.** Memory (SQLite FTS5 + lexical: stemmer, trigram,
-> synonyms), the `memory.*` tools with TTL and metrics, top-k injection, the soft
-> L1→L2→L3 cascade and verification work; benchmarks run on a fixture and on the
-> real corpus; vectors are an optional `dsh-memory-embeddings` package. The L2→L3
-> router and the submodel dispatcher are design spikes ([PLAN.md](PLAN.md),
-> `docs/router-design.md`, `docs/roles-design.md`).
+> **Status: MVP and phase 5 implemented.** Memory (SQLite FTS5 + lexical: stemmer,
+> trigram, synonyms), the `memory.*` tools (available to the agent via `ctx.tools`)
+> with TTL and metrics, top-k injection, the soft L1→L2→L3 cascade, verification,
+> benchmarks on a fixture and the real corpus, and an optional
+> `dsh-memory-embeddings` package. The L2→L3 router and the role dispatcher are
+> implemented behind flags (off by default): acceptance in
+> [`docs/dispatcher-calibration.md`](docs/dispatcher-calibration.md), design in
+> [`docs/router-design.md`](docs/router-design.md), [`docs/roles-design.md`](docs/roles-design.md).
 
 ## Problem
 
@@ -276,7 +278,7 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 
 [docs/benchmark-real.md](docs/benchmark-real.md) contains exact numbers, misses,
 and comparisons with fixture 015 and plain `unicode61`. On the current corpus
-the lexical engine gets about 75% hit-rate and 71% savings (`unicode61`: about
+the lexical engine gets about 80% hit-rate and 78% savings (`unicode61`: about
 65% and 65%); the numbers drift as the repository grows, the misses are broad semantic questions. Conclusion: lexical search is enough
 for exact terms, vectors are optional for the MVP (021/016). The benchmark
 always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
