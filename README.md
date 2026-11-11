@@ -135,8 +135,10 @@ write-back обязан передавать `author` вида `cascade:*`/`mode
 | `memory.write` | записать знание | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
 | `memory.invalidate` | пометить устаревшее | `{ path?, ref? }` → `{ affected }` |
 | `memory.verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate }` |
+| `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
+Инструменты регистрируются в `ctx.tools` при наличии сервиса `tools`; без него
+плагин грузится как раньше (API-модули `memory.*` доступны сервису `ctx.memory`).
 `memory.search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
 с пометкой статуса.
 `memory.write` без источника — только `draft` с confidence < 0.5; при совпадении хэша растёт confidence.
