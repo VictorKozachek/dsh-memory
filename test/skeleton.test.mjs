@@ -97,7 +97,7 @@ test('конфиг копируется и замораживается', () => 
 
 test('package.json описывает bundle-пакет с ESM-точкой входа', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  assert.equal(pkg.name, 'dsh-memory')
+  assert.equal(pkg.name, '@vkozachek/dsh-memory')
   assert.equal(pkg.type, 'module')
   assert.equal(pkg.main, 'lib/index.js')
   assert.equal(pkg.exports['.'], './lib/index.js')
@@ -114,5 +114,5 @@ test('cordis.patch.yml вставляет ряд, монтирующий пак�
   const patch = readFileSync(patchFile, 'utf8')
   assert.match(patch, /^- insert:/m)
   assert.match(patch, /^\s+- id: dsh-memory$/m)
-  assert.match(patch, /^\s+name: dsh-memory$/m)
+  assert.match(patch, /^\s+name: @vkozachek\/dsh-memory$/m)
 })

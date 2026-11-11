@@ -48,7 +48,7 @@ export function createLocalChannel({ provider, model = provider.model, weight = 
     name: 'embeddings',
     weight,
     /**
-     * @param {{ store: import('dsh-memory').MemoryStore, query: string, limit?: number }} input — запрос и хранилище.
+     * @param {{ store: import('@vkozachek/dsh-memory').MemoryStore, query: string, limit?: number }} input — запрос и хранилище.
      * @returns {Array<{ id: number, score: number }>} кандидаты по убыванию.
      */
     search({ store, query, limit = 20 } = {}) {

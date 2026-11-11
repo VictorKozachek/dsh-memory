@@ -1,7 +1,7 @@
 {
-  "name": "dsh-memory-embeddings",
+  "name": "@vkozachek/dsh-memory-embeddings",
   "version": "0.1.0",
-  "description": "Опциональные эмбеддинги и гибридный поиск для dsh-memory (без сети в основном пакете)",
+  "description": "Optional embeddings and hybrid search for @vkozachek/dsh-memory; the main package stays offline.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -24,7 +24,7 @@
     }
   },
   "peerDependencies": {
-    "dsh-memory": "^0.1.0",
+    "@vkozachek/dsh-memory": "^0.1.0",
     "@xenova/transformers": "^2.17.0"
   },
   "peerDependenciesMeta": {
@@ -35,5 +35,26 @@
   "engines": {
     "node": ">=22.13"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VictorKozachek/dsh-memory.git"
+  },
+  "homepage": "https://github.com/VictorKozachek/dsh-memory#readme",
+  "bugs": {
+    "url": "https://github.com/VictorKozachek/dsh-memory/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "embeddings",
+    "hybrid-search",
+    "sqlite",
+    "rag"
+  ],
+  "author": "Victor Kozachek",
+  "publishConfig": {
+    "access": "public"
+  }
 }

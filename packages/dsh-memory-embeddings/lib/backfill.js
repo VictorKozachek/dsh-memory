@@ -10,7 +10,7 @@
  * Досчитать недостающие векторы.
  *
  * @param {object} options — параметры.
- * @param {import('dsh-memory').MemoryStore} options.store — открытое хранилище.
+ * @param {import('@vkozachek/dsh-memory').MemoryStore} options.store — открытое хранилище.
  * @param {{ embed: Function, model: string }} options.provider — провайдер.
  * @param {string} [options.model] — id модели (по умолчанию provider.model).
  * @param {number} [options.batch_size] — размер батча.

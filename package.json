@@ -1,7 +1,7 @@
 {
-  "name": "dsh-memory",
+  "name": "@vkozachek/dsh-memory",
   "version": "0.1.0",
-  "description": "Долгосрочная память проекта и каскад L0 → L1 → L2 → L3 для агентов DeepSeek Harness",
+  "description": "Long-term project memory and token cascade for DeepSeek Harness: local RAG, verified write-back, cheap-submodel routing.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -42,5 +42,29 @@
   "engines": {
     "node": ">=22.13"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VictorKozachek/dsh-memory.git"
+  },
+  "homepage": "https://github.com/VictorKozachek/dsh-memory#readme",
+  "bugs": {
+    "url": "https://github.com/VictorKozachek/dsh-memory/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "memory",
+    "rag",
+    "sqlite",
+    "fts5",
+    "llm-agents",
+    "embeddings",
+    "context"
+  ],
+  "author": "Victor Kozachek",
+  "publishConfig": {
+    "access": "public"
+  }
 }
