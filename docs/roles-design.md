@@ -178,6 +178,23 @@ Human override: человек может выбрать ответ роли; э
 8. Есть замер латентности/стоимости на бенчмарке 015 (фаза 5), отчёт.
 9. README/PLAN и карточка обновлены; прототип не меняет дефолт.
 
+## 7a. Наблюдаемость диспетчера (028)
+
+Каждый вызов диспетчера пишет событие `dispatch` в `metrics`:
+
+```json
+{ "subtopics": 2, "roles": ["developer", "reviewer"],
+  "durations_ms": {"developer": 12, "reviewer": 30},
+  "strategy": "priority", "fallback": false,
+  "reason": "answer", "latency_ms": 44 }
+```
+
+Текст запроса и ответов не пишется — только имена ролей и числа. Fallback
+пишется с причиной (`plan ...`, `роли не ответили`, `ошибка диспетчера`).
+`memory.stats` отдаёт `dispatch.count`, `dispatch.fallback_rate`, общие
+`p50_ms`/`p95_ms` и `by_role` с теми же перцентилями по ролям. Ошибка записи
+метрики не ломает ход (hook оборачивает запись в try/catch).
+
 ## 8. Открытые вопросы
 
 1. Формат реестра: YAML в профиле DSH, JSON в пакете или DSH agent-presets?
