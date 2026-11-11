@@ -37,9 +37,11 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # затем перезап
 - планируется позже (вне фазы 0): `dsh-memory doctor` (путь БД, namespace, файлы/чанки,
   отсеянные секреты), `dsh-memory index --dry-run` и фоновая автоиндексация при первом
   ходе с отключением через `DSH_MEMORY_AUTOINDEX=off`;
-- векторы в основной пакет не входят: при необходимости ставится отдельный
-  `@vkozachek/dsh-memory-embeddings` (по умолчанию выключен), и только он работает с провайдером или
-  локальной моделью; дизайн и границы доверия — [docs/embeddings-design.md](docs/embeddings-design.md).
+- векторы в основной пакет не входят: отдельный
+  `@vkozachek/dsh-memory-embeddings` включает локальный RAG по умолчанию
+  (multilingual-e5-small, веса скачиваются в `~/.dsh/memory/models` при первом
+  использовании), облачные провайдеры — опция; дизайн и границы доверия —
+  [docs/embeddings-design.md](docs/embeddings-design.md).
 
 ### Первый запрос
 
@@ -306,13 +308,16 @@ Write-back роли (`memory.writeRole`) идёт только `draft` с `autho
 
 ## Эмбеддинги (опция)
 
-По умолчанию выключены: поиск — чистый FTS5. Опциональный пакет
+Опциональный пакет
 [`packages/dsh-memory-embeddings`](packages/dsh-memory-embeddings/README.md)
-даёт локальные (офлайн, без ключей) или OpenAI-совместимые/Ollama эмбеддинги,
-хранит векторы в SQLite BLOB и добавляет гибридный RRF BM25 + косинус через
-`memory.registerSearchChannel`. Основной пакет не получает сетевой код; весь
-egress — в опциональном пакете, ключ только из env, `DSH_MEMORY_NO_NETWORK=1`
-запрещает сеть. Сравнение качества и латентности с FTS5 —
+включает локальный RAG по умолчанию: `Xenova/multilingual-e5-small` через
+ONNX/WASM, веса скачиваются при первом использовании в
+`~/.dsh/memory/models` (явное `allow_download:true`) и дальше работают офлайн.
+Пакет хранит векторы в SQLite BLOB и добавляет гибридный RRF BM25 + косинус
+через `memory.registerSearchChannel`; облачные OpenAI-совместимые/Ollama
+провайдеры — опция. Основной пакет не получает сетевой код; весь egress — в
+опциональном пакете, ключ только из env, `DSH_MEMORY_NO_NETWORK=1` запрещает
+сеть/скачивание (скачанная модель работает). Сравнение качества и латентности с FTS5 —
 [docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); диагностика —
 `dsh-memory-embeddings doctor --config <файл.json>`; дизайн и критерии —
 [docs/embeddings-design.md](docs/embeddings-design.md).

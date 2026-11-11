@@ -16,7 +16,7 @@ import { createAsyncChannel, createLocalChannel } from './channel.js'
 import { resolveConfig } from './config.js'
 import { doctorReport } from './doctor.js'
 import { createLocalProvider } from './providers/local.js'
-import { createLocalOnnxProvider } from './providers/local-onnx.js'
+import { checkLocalOnnxAvailability, createLocalOnnxProvider } from './providers/local-onnx.js'
 import { createOllamaProvider } from './providers/ollama.js'
 import { createOpenAiProvider } from './providers/openai.js'
 
@@ -39,18 +39,34 @@ export { createOpenAiProvider, redact } from './providers/openai.js'
  * ключей; вызывающий (apply) их ловит и откатывается на FTS5.
  *
  * @param {ReturnType<typeof resolveConfig>['config']} config — конфиг.
- * @param {{ env?: Record<string, string | undefined>, fetchImpl?: Function }} [options] — окружение/транспорт для тестов.
- * @returns {{ kind: 'local' | 'ollama' | 'openai-compatible', model: string, embed: Function, embedOne?: Function }} провайдер.
+ * @param {{ env?: Record<string, string | undefined>, fetchImpl?: Function, log?: Function }} [options] — окружение/транспорт/лог для тестов.
+ * @returns {{ kind: 'local' | 'local-onnx' | 'ollama' | 'openai-compatible', model: string, embed: Function, embedOne?: Function }} провайдер.
  */
-export function createProvider(config, { env = process.env, fetchImpl } = {}) {
+export function createProvider(config, { env = process.env, fetchImpl, log = () => {} } = {}) {
   if (!config.enabled) throw new Error('dsh-memory-embeddings: пакет выключен')
   if (config.provider === '') throw new Error('dsh-memory-embeddings: provider не задан')
   if (config.model === '') throw new Error('dsh-memory-embeddings: model не задан')
   switch (config.provider) {
     case 'local':
       return createLocalProvider({ model: config.model })
-    case 'local-onnx':
-      return createLocalOnnxProvider({ model: config.model, model_path: config.model_path, env })
+    case 'local-onnx': {
+      const availability = checkLocalOnnxAvailability({
+        model: config.model,
+        model_path: config.model_path,
+        allow_download: config.allow_download,
+        cache_dir: config.cache_dir,
+        env,
+      })
+      if (!availability.ok) throw new Error(`dsh-memory-embeddings: local-onnx недоступен (${availability.reason}); используется FTS5`)
+      return createLocalOnnxProvider({
+        model: config.model,
+        model_path: config.model_path,
+        allow_download: config.allow_download,
+        cache_dir: config.cache_dir,
+        env,
+        log,
+      })
+    }
     case 'ollama':
       return createOllamaProvider({
         base_url: config.base_url || undefined,
@@ -100,7 +116,7 @@ export function apply(ctx, config = {}) {
 
   let provider
   try {
-    provider = createProvider(options, { env: process.env })
+    provider = createProvider(options, { env: process.env, log: (level, message) => log(ctx, level, message) })
   } catch (error) {
     log(ctx, 'warn', `embeddings: провайдер не создан (${error instanceof Error ? error.message : String(error)}); используется FTS5`)
     return

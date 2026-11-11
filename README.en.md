@@ -311,9 +311,11 @@ write-back (`memory.writeRole`) is `draft` only with `author: role:<name>` and
 
 ## Embeddings (optional)
 
-Disabled by default: search is pure FTS5. The optional
+The optional
 [`packages/dsh-memory-embeddings`](packages/dsh-memory-embeddings/README.md)
-package adds local (hash or ONNX, offline), OpenAI-compatible/Ollama embeddings,
+package enables local RAG by default (multilingual-e5-small, ONNX weights
+downloaded to `~/.dsh/memory/models` on first use) and also supports
+OpenAI-compatible/Ollama embeddings,
 stores vectors in SQLite BLOBs and contributes a hybrid RRF BM25 + cosine
 channel via `memory.registerSearchChannel`. The main package gets no network
 code; all egress lives in the optional package, the key comes from env only, and

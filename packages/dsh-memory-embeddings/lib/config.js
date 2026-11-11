@@ -9,11 +9,13 @@ export const PROVIDERS = Object.freeze(['local', 'local-onnx', 'ollama', 'openai
 
 /** Дефолты ряда `dsh-memory-embeddings`. */
 export const DEFAULT_CONFIG = Object.freeze({
-  enabled: false,
-  provider: '',
+  enabled: true,
+  provider: 'local-onnx',
   base_url: '',
-  model: '',
+  model: 'Xenova/multilingual-e5-small',
   model_path: '',
+  allow_download: true,
+  cache_dir: '~/.dsh/memory/models',
   api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY',
   batch_size: 32,
   timeout_ms: 5_000,
@@ -46,11 +48,15 @@ export function resolveConfig(raw = {}) {
       warnings.push(`embeddings.provider должен быть одним из ${PROVIDERS.join(', ')} — оставляю пусто`)
     }
   }
-  for (const field of ['base_url', 'model', 'model_path', 'api_key_env']) {
+  for (const field of ['base_url', 'model', 'model_path', 'cache_dir', 'api_key_env']) {
     if (raw[field] !== undefined) {
       if (typeof raw[field] === 'string') config[field] = raw[field].trim()
       else warnings.push(`embeddings.${field} должен быть строкой`)
     }
+  }
+  if (raw.allow_download !== undefined) {
+    if (typeof raw.allow_download === 'boolean') config.allow_download = raw.allow_download
+    else warnings.push('embeddings.allow_download должен быть boolean')
   }
   for (const field of ['batch_size', 'timeout_ms']) {
     if (raw[field] !== undefined) {
@@ -75,6 +81,9 @@ export function resolveConfig(raw = {}) {
     if (config.model === '') warnings.push('embeddings.enabled=true, но model пуст — канал не включится, останется FTS5')
     if (config.provider === 'openai-compatible' && config.base_url === '') {
       warnings.push('embeddings.provider=openai-compatible, но base_url пуст — канал не включится, останется FTS5')
+    }
+    if (config.provider === 'local-onnx' && config.model_path === '' && config.allow_download === false) {
+      warnings.push('embeddings.provider=local-onnx: allow_download=false и model_path пуст — нужна скачанная модель в cache_dir')
     }
   }
   return { config: Object.freeze(config), warnings }

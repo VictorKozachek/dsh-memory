@@ -50,10 +50,13 @@ dsh-memory-embeddings/       # опциональный, весь egress зде�
     - id: dsh-memory-embeddings
       name: dsh-memory-embeddings
       config:
-        enabled: false          # дефолт — выключено
-        provider: ""            # openai-compatible | ollama | local-onnx
+        enabled: true           # локальный RAG (spec 004)
+        provider: local-onnx    # openai-compatible | ollama | local-onnx
         base_url: ""
-        model: ""
+        model: Xenova/multilingual-e5-small
+        model_path: ""
+        allow_download: true
+        cache_dir: ~/.dsh/memory/models
         api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY
 ```
 
@@ -84,10 +87,12 @@ dsh-memory-embeddings/       # опциональный, весь egress зде�
 
 | Поле | Тип | Дефолт | Смысл |
 |---|---|---|---|
-| `enabled` | boolean | `false` | включить гибридный поиск |
-| `provider` | `""` \| `openai-compatible` \| `ollama` \| `local-onnx` | `""` | бэкенд; без него ошибка конфига |
+| `enabled` | boolean | `true` | включить гибридный поиск (spec 004) |
+| `provider` | `""` \| `openai-compatible` \| `ollama` \| `local-onnx` | `local-onnx` | бэкенд; без него ошибка конфига |
 | `base_url` | string | `""` | для API/Ollama; обязателен для `openai-compatible`, у Ollama дефолт `http://127.0.0.1:11434` |
-| `model` | string | `""` | id модели; обязателен при `enabled` |
+| `model` | string | `Xenova/multilingual-e5-small` | id модели; обязателен при `enabled` |
+| `allow_download` | boolean | `true` | разрешить первую загрузку весов |
+| `cache_dir` | string | `~/.dsh/memory/models` | кэш весов, не входит в npm-пакет |
 | `api_key_env` | string | `DSH_MEMORY_EMBEDDINGS_API_KEY` | **имя** переменной с ключом, не значение |
 | `batch_size` | int | `32` | размер батча при индексации/запросе |
 | `timeout_ms` | int | `5000` | таймаут запроса к провайдеру |
@@ -190,7 +195,7 @@ Ollama удобен для тех, у кого он уже есть, но с `DS
 ## 8. Сценарий включения и `doctor`
 
 ```
-embeddings.enabled = false            -> FTS5 (дефолт, ничего не меняется)
+embeddings.enabled = false            -> FTS5 (явное отключение)
 enabled=true, provider/model пустые   -> warn + doctor: не включено, FTS5
 enabled=true, API, нет ключа в env    -> warn + doctor: нет <ENV>, FTS5
 enabled=true, API, ключ есть          -> hybrid; doctor предупреждает об отправке
@@ -252,8 +257,9 @@ embeddings: включены (provider=openai-compatible, model=text-embedding-3
 
 ## 11. Открытые вопросы
 
-1. **Дефолтный провайдер.** Предложение: дефолта нет (`enabled:false`,
-   `provider:""`); рекомендуемый путь — `local-onnx`, но модель не тянется
+1. **Дефолтный провайдер.** Спека 004: дефолт `enabled:true`,
+   `provider:"local-onnx"` с первой загрузкой по `allow_download`; ранее
+   предлагалось `enabled:false`, модель не тянется
    автоматически. Нужен явный выбор владельца.
 2. **Локальная модель.** `multilingual-e5-small`/`e5-base` (лицензия, размер,
    качество на русском) vs специализированная русская; квантование и формат

@@ -1,16 +1,20 @@
 # Патч-слой опционального пакета эмбеддингов (задача 016).
 #
-# Ставится отдельно от @vkozachek/dsh-memory и монтируется после него; по умолчанию
-# выключен, поэтому установка пакета сама по себе не меняет поиск. Конфиг —
-# ряд `@vkozachek/dsh-memory-embeddings`; значения по умолчанию дублируются в lib/config.js.
+# Ставится отдельно от @vkozachek/dsh-memory и монтируется после него. По
+# умолчанию включает локальный RAG (multilingual-e5-small через ONNX), веса
+# скачиваются при первом использовании в cache_dir. Конфиг — ряд
+# `@vkozachek/dsh-memory-embeddings`; дефолты дублируются в lib/config.js.
 - insert:
     - id: dsh-memory-embeddings
       name: @vkozachek/dsh-memory-embeddings
       config:
-        enabled: false
-        provider: ""                 # local | local-onnx | ollama | openai-compatible
+        enabled: true
+        provider: local-onnx         # local | local-onnx | ollama | openai-compatible
         base_url: ""
-        model: ""
+        model: Xenova/multilingual-e5-small
+        model_path: ""
+        allow_download: true
+        cache_dir: ~/.dsh/memory/models
         api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY
         batch_size: 32
         timeout_ms: 5000
