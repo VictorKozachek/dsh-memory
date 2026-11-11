@@ -16,11 +16,13 @@ FTS5.
 
 ```yaml
 dsh-memory-embeddings:
-  enabled: false
-  provider: ""                 # local | local-onnx | ollama | openai-compatible
+  enabled: true
+  provider: local-onnx         # local | local-onnx | ollama | openai-compatible
   base_url: ""
-  model: ""
-  model_path: ""               # для local-onnx
+  model: Xenova/multilingual-e5-small
+  model_path: ""               # локальный артефакт вместо/вместо кэша
+  allow_download: true         # явное согласие на первую загрузку
+  cache_dir: ~/.dsh/memory/models
   api_key_env: DSH_MEMORY_EMBEDDINGS_API_KEY
   batch_size: 32
   timeout_ms: 5000
@@ -53,12 +55,13 @@ dsh-memory-embeddings:
   используются; это baseline, а не нейросетевая модель (ONNX/Ollama — отдельные
   провайдеры/открытый вопрос 021). Векторы лежат в SQLite BLOB, косинус —
   brute-force.
-- `provider: local-onnx` — нейросетевая локальная модель через
-  `@xenova/transformers` (опциональная зависимость) и **обязательный локальный
-  `model_path`**; удалённая загрузка модели не поддерживается
-  (`allowRemoteModels=false`): при `DSH_MEMORY_NO_NETWORK=1` локальный
-  `model_path` разрешён (сеть не нужна), а пустой/чужой путь даёт понятную
-  ошибку. Без зависимости/модели канал отключается, остаётся FTS5.
+- `provider: local-onnx` — локальная модель через `@xenova/transformers`
+  (опциональная зависимость). По умолчанию `Xenova/multilingual-e5-small`:
+  первый запуск скачивает веса в `cache_dir` (`allow_download:true`, прогресс в
+  лог), повторный работает офлайн. `model_path` задаёт готовый локальный
+  артефакт. `DSH_MEMORY_NO_NETWORK=1` запрещает скачивание, но скачанная модель
+  работает; `allow_download:false` без кэша — warn и FTS5. Битый/отсутствующий
+  артефакт не роняет профиль.
 - `provider: openai-compatible` — `POST {base_url}/embeddings`; ключ читается из
   `env[api_key_env]`, в БД/логи/ошибки не попадает; ошибки редактируются.
 - `provider: ollama` — локальный Ollama (`http://127.0.0.1:11434` по умолчанию).
@@ -77,6 +80,8 @@ dsh-memory-embeddings:
 
 ## Ограничения этой версии
 
+- Модель и кэш не входят в npm-пакет; `@xenova/transformers` — optional
+  dependency. Первая загрузка требует сети и явного `allow_download:true`.
 - Для локального провайдера канал синхронный; для API/Ollama — асинхронный:
   `searchMemoryAsync`/`buildMemoryBlockAsync` (hook хода) досчитывают векторы,
   считают embedding запроса и добавляют косинус к RRF. Синхронный
@@ -88,9 +93,11 @@ dsh-memory-embeddings:
 - Сервис `memory.search` в основном пакете асинхронный и ждёт async-каналы;
   для CLI/бенчмарка есть `memory.searchSync` (async-каналы пропускаются).
 - `local-hash-128` — офлайн-baseline (хэши слов/триграмм), не нейросетевая
-  модель. Нейросетевая локальная модель (ONNX/WASM) не входит в пакет: нужен
-  отдельный model-артефакт и зависимости; локальная модель сейчас доступна
-  через `provider: ollama` (HTTP localhost, NO_NETWORK его запрещает).
+  модель. `local-onnx`/`multilingual-e5-small` — основной локальный путь; сами
+  веса и `@xenova/transformers` не входят в npm-пакет (optional dependency +
+  кэш `~/.dsh/memory/models`). Без загрузки/кэша остаётся FTS5; локальная
+  модель также доступна через `provider: ollama` (HTTP localhost, NO_NETWORK
+  его запрещает).
 - Нет ANN: brute-force косинус; порог перехода на `sqlite-vec` — по замеру
   (дизайн 021, >50k векторов / p95 > 50 мс).
 

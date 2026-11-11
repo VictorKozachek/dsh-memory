@@ -100,20 +100,22 @@ test('бэкфилл и канал: brute-force косинус находит з
   assert.ok(block.block !== null)
 })
 
-test('конфиг: дефолт выключен; enabled без provider/model/base_url — предупреждения и FTS5', () => {
+test('конфиг: локальный RAG включён по умолчанию; невалидные поля — предупреждения', () => {
   assert.deepEqual(resolveConfig({}).config, {
-    enabled: false,
-    provider: '',
+    enabled: true,
+    provider: 'local-onnx',
     base_url: '',
-    model: '',
+    model: 'Xenova/multilingual-e5-small',
     model_path: '',
+    allow_download: true,
+    cache_dir: '~/.dsh/memory/models',
     api_key_env: 'DSH_MEMORY_EMBEDDINGS_API_KEY',
     batch_size: 32,
     timeout_ms: 5_000,
     max_retries: 2,
     hybrid_weight: 0.5,
   })
-  const broken = resolveConfig({ enabled: true })
+  const broken = resolveConfig({ enabled: true, provider: '', model: '' })
   assert.equal(broken.config.enabled, true)
   assert.ok(broken.warnings.some((warning) => warning.includes('provider пуст')))
   assert.ok(broken.warnings.some((warning) => warning.includes('model пуст')))
@@ -373,8 +375,8 @@ test('local-onnx провайдер принимает локальный embedd
   const results = await searchMemoryAsync(store, { query: 'индексатор' }, { channels: [channel] })
   assert.ok(results.some((row) => row.id === id))
 
-  const unavailable = createLocalOnnxProvider({ model: 'missing-model' })
-  await assert.rejects(() => unavailable.embed(['текст']), /model_path/)
+  const unavailable = createLocalOnnxProvider({ model: 'missing-model', allow_download: false, cache_dir: '/tmp/dsh-memory-empty-cache' })
+  await assert.rejects(() => unavailable.embed(['текст']), /не найдена.*allow_download|FTS5/)
 
   // NO_NETWORK разрешён, если модель лежит локально и allowRemoteModels=false:
   // загрузчик не ходит в сеть. Проверяем оба режима (с флагом и без).
@@ -400,7 +402,8 @@ test('doctor-команда опционального пакета: преду�
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const file = join(dir, 'config.json')
 
-  const disabled = doctorCommand([], {})
+  writeFileSync(file, JSON.stringify({ enabled: false }))
+  const disabled = doctorCommand(['--config', file], {})
   assert.equal(disabled.code, 0)
   assert.ok(disabled.lines.some((line) => line.includes('выключены')))
 
