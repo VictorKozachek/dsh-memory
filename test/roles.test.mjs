@@ -286,3 +286,34 @@ test('отмена в середине выполнения роли: прова
   )
   assert.equal(sawAbort, true)
 })
+
+test('отмена между ответом роли и агрегацией не возвращает ответ', async () => {
+  const roles = createRoleRegistry([role()])
+  const controller = new AbortController()
+  const dispatcher = createDispatcher({
+    registry: roles,
+    providers: {
+      developer: async () => {
+        controller.abort()
+        return { answer: 'поздний ответ', confidence: 1 }
+      },
+    },
+  })
+  await assert.rejects(
+    () => dispatcher.dispatch({ task: 'задача', subtopics: [{ id: 'a', text: 'код', role: 'developer' }], signal: controller.signal }),
+    (error) => error.name === 'AbortError',
+  )
+})
+
+test('AbortError провайдера — ошибка роли, а не отмена хода', async () => {
+  const roles = createRoleRegistry([role()])
+  const dispatcher = createDispatcher({
+    registry: roles,
+    providers: {
+      developer: async () => { throw Object.assign(new Error('provider abort'), { name: 'AbortError' }) },
+    },
+  })
+  const result = await dispatcher.dispatch({ task: 'задача', subtopics: [{ id: 'a', text: 'код', role: 'developer' }] })
+  assert.equal(result.fallback, true)
+  assert.equal(result.results[0].error, 'provider failed')
+})

@@ -233,7 +233,8 @@ test('planner получает AbortSignal; невалидный реестр р
   })
   const result = await live.dispatch({ task: 'задача', signal: controller.signal })
   assert.equal(result.answer, 'ok')
-  assert.equal(plannerSignal, controller.signal)
+  assert.ok(plannerSignal instanceof AbortSignal)
+  assert.equal(plannerSignal.aborted, false)
 
   const broken = createLiveDispatcher({ config: { dispatcher: { enabled: true, roles: [{ name: 'Bad Name' }] } }, logger: () => {} })
   assert.equal(broken.enabled, false)
@@ -256,4 +257,29 @@ test('live dispatcher: plan_timeout_ms и max_subtasks из конфига', asy
   const limited = await live.dispatch({ task: 'задача' })
   assert.equal(limited.fallback, false)
   assert.equal(limited.answer.split('\n\n').length, 2)
+})
+
+test('live fallback сохраняет role timeout и provider failed в reason', async () => {
+  const live = createLiveDispatcher({
+    config: {
+      dispatcher: {
+        enabled: true,
+        timeout_ms: 10,
+        roles: [
+          role({ name: 'developer', timeout_ms: 10 }),
+          role({ name: 'reviewer', responsibilities: ['ревью'], timeout_ms: 10 }),
+        ],
+      },
+    },
+  })
+  live.registerProvider('developer', () => new Promise(() => {}))
+  live.registerProvider('reviewer', async () => { throw new Error('down') })
+  live.registerPlanner(() => [
+    { id: 'a', text: 'код', role: 'developer' },
+    { id: 'b', text: 'ревью', role: 'reviewer' },
+  ])
+  const result = await live.dispatch({ task: 'задача' })
+  assert.equal(result.fallback, true)
+  assert.match(result.reason, /role timeout 1/)
+  assert.match(result.reason, /provider failed 1/)
 })

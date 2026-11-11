@@ -25,6 +25,7 @@
     "docs/embeddings-design.md",
     "docs/router-design.md",
     "docs/roles-design.md",
+    "docs/dispatcher-calibration.md",
     "cordis.patch.yml"
   ],
   "bin": {

@@ -299,7 +299,8 @@ plugin-сообщение `dsh-memory-dispatcher` и пишется в `metrics`
 Write-back роли (`memory.writeRole`) идёт только `draft` с `author: role:<name>`
 и `confidence ≤ 0.6` в namespace роли (или в общий при
 `dispatcher.shared_namespace: true`); `verified` — только через `memory.verify`.
-Флаг выключен — поведение пакета прежнее; дизайн — [docs/roles-design.md](docs/roles-design.md).
+Флаг выключен — поведение пакета прежнее; дизайн — [docs/roles-design.md](docs/roles-design.md),
+приёмка и пороги — [docs/dispatcher-calibration.md](docs/dispatcher-calibration.md).
 
 ## Эмбеддинги (опция)
 

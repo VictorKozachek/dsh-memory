@@ -193,11 +193,12 @@ to L3 when they cannot.
 The developer → reviewer → fixes loop matters: no specialist signs off on its
 own output; the tester works independently of the developer. Roles scale
 through a **role registry**: a new specialist is a configuration entry, not a
-dispatcher change. Status: **design spike 018** — registry, protocol,
-aggregation and conflict resolution are in [docs/roles-design.md](docs/roles-design.md);
-the mock routing prototype is [lib/roles.js](lib/roles.js); default behaviour is
-unchanged, implementation is phase 5. Risks: latency, coordination cost, routing
-errors, conflicting answers, prompt and role versioning.
+dispatcher change. Phase 5 is implemented behind `dispatcher.enabled:false`:
+the hook calls the dispatcher after an L1 miss, and an uncovered plan/error/
+cancellation falls back to L3. Design: [docs/roles-design.md](docs/roles-design.md);
+acceptance and thresholds: [docs/dispatcher-calibration.md](docs/dispatcher-calibration.md).
+Risks: latency, coordination cost, routing errors, conflicting answers,
+prompt and role versioning.
 
 ## Configuration
 
