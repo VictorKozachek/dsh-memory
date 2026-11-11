@@ -217,6 +217,7 @@ dsh-memory:
     timeout_ms: 5000
     plan_timeout_ms: 5000                          # таймаут planner (026)
     max_subtasks: 8                                # лимит подтем (026)
+    shared_namespace: false                        # роли пишут в свой namespace (029)
     default_role: ""                               # роль для подтемы без явной маршрутизации
     roles: []                                      # [{ name, prompt, model, namespace, ... }]
   cascade:
@@ -293,6 +294,9 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 ошиблась/не ответила или ход отменён — hook не вмешивается, ход уходит на L3
 (или завершается по отмене). Ответ диспетчера добавляется в ход как
 plugin-сообщение `dsh-memory-dispatcher` и пишется в `metrics` как L2.
+Write-back роли (`memory.writeRole`) идёт только `draft` с `author: role:<name>`
+и `confidence ≤ 0.6` в namespace роли (или в общий при
+`dispatcher.shared_namespace: true`); `verified` — только через `memory.verify`.
 Флаг выключен — поведение пакета прежнее; дизайн — [docs/roles-design.md](docs/roles-design.md).
 
 ## Эмбеддинги (опция)

@@ -80,6 +80,7 @@ test('дефолты повторяют блок dsh-memory из README', () => 
     plan_timeout_ms: 5_000,
     max_subtasks: 8,
     default_role: '',
+    shared_namespace: false,
     roles: [],
   })
 })
@@ -103,7 +104,7 @@ test('конфиг ряда накладывается поверх дефолт
     verify: { require_source_for_verified: false },
     cascade: { enabled: true, model: 'cheap-model', max_tokens: 200 },
     router: { enabled: true, confidence_threshold: 0.8, timeout_ms: 250 },
-    dispatcher: { enabled: true, strategy: 'vote', timeout_ms: 300, plan_timeout_ms: 50, max_subtasks: 2, default_role: 'reviewer', roles: [{ name: 'reviewer' }] },
+    dispatcher: { enabled: true, strategy: 'vote', timeout_ms: 300, plan_timeout_ms: 50, max_subtasks: 2, default_role: 'reviewer', shared_namespace: true, roles: [{ name: 'reviewer' }] },
   }, { env: {} })
 
   assert.deepEqual(warnings, [])
@@ -135,6 +136,7 @@ test('конфиг ряда накладывается поверх дефолт
     plan_timeout_ms: 50,
     max_subtasks: 2,
     default_role: 'reviewer',
+    shared_namespace: true,
     roles: [{ name: 'reviewer' }],
   })
 })
@@ -159,7 +161,7 @@ test('каждое невалидное поле заменяется дефол
     verify: { require_source_for_verified: 'no' },
     cascade: { enabled: 'yes', preset: 7, model: 42, max_tokens: 0, write_back: 'no' },
     router: { enabled: 'yes', confidence_threshold: 2, timeout_ms: 0 },
-    dispatcher: { enabled: 'yes', strategy: 'bogus', timeout_ms: 0, plan_timeout_ms: 0, max_subtasks: 0, default_role: 7, roles: 'developer' },
+    dispatcher: { enabled: 'yes', strategy: 'bogus', timeout_ms: 0, plan_timeout_ms: 0, max_subtasks: 0, default_role: 7, shared_namespace: 'yes', roles: 'developer' },
   }, { env: {} })
 
   assert.deepEqual(config, DEFAULT_CONFIG)
@@ -190,6 +192,7 @@ test('каждое невалидное поле заменяется дефол
     'dispatcher.timeout_ms',
     'dispatcher.plan_timeout_ms',
     'dispatcher.max_subtasks',
+    'dispatcher.shared_namespace',
     'dispatcher.default_role',
     'dispatcher.roles',
   ]) {

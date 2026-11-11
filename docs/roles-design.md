@@ -63,8 +63,10 @@ roles:
 ### Namespace и память
 
 `namespace` роли — это namespace памяти, куда пишется её write-back. По
-умолчанию все роли используют проектную память (общий namespace), но роль может
-иметь приватную память (например, `reviewer-private`). Правила:
+умолчанию роль пишет в **свой** namespace (`role.namespace`), а
+`dispatcher.shared_namespace: true` переключает на общий проектный. Роль читает
+только свой namespace (029); реализация — `memory.writeRole`/`memory.searchRole`/
+`memory.verifyRole`. Правила:
 
 - читать память роли можно из её namespace и из общей проектной;
 - писать — в namespace роли с `author: role:<name>`, `status: draft`
