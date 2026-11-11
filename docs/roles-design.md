@@ -74,8 +74,12 @@ roles:
   (013), `confidence ≤ 0.6`; дедупликация `writeRole` разрешена только для
   собственного draft роли ≤ 0.6; существующая verified/human запись или запись
   с confidence > 0.6 — явный конфликт, а не подтверждение;
-- `verified` ставится только ревью/тестом/человеком, не диспетчером;
-- провенанс (`source_path`/`source_ref`) обязателен; агрегированный ответ
+- `verified` ставится только ревью/тестом/человеком, не диспетчером; в
+  `shared_namespace` `verifyRole` по id может подтвердить любую draft-запись
+  общего namespace при валидном `verified_by` — это политика общего пространства,
+  её должен подтвердить владелец;
+- провенанс (`source_path`/`source_ref`) **обязателен для verified**;
+  write-back роли без источника — draft 0.3 (как 005), агрегированный ответ
   ссылается на ответы ролей как на источник.
 
 ## 3. Протокол диспетчера
@@ -152,6 +156,20 @@ Human override: человек может выбрать ответ роли; э
   `memory.registerRoleProvider`, planner через `memory.registerDispatcherPlanner`,
   hook вызывает `dispatch` только после промаха L1 и только при
   `dispatcher.enabled:true`; fallback — обычный L3, отмена — без L3.
+
+### 5a. Контракт planner (026/030)
+
+- planner вызывается с `AbortSignal` и таймаутом `dispatcher.plan_timeout_ms`;
+  по таймауту signal отменяется, ход получает fallback L3, а кооперативный
+  planner прекращает работу (не продолжает после fallback);
+- причина отказа (`planner timeout`, `PlanError`) сохраняется в `reason`
+  fallback и в `dispatch`-метрике, а не только в warning-логе;
+- `dispatcher.max_subtasks` обрезает план с warning, а не молча;
+- объект подтемы без `role` допускается, если задан `default_role` (или роль
+  выводится из responsibilities); при отсутствии роли и дефолта — PlanError;
+- `dispatch` перепроверяет `signal.aborted` после ответов ролей до агрегации;
+  `AbortError` самого провайдера — ошибка роли (`provider failed`), а отменой
+  хода считается только внешний signal.
 
 ## 6. Риски
 

@@ -70,7 +70,8 @@ test('planner получает AbortSignal; отмена хода не уход�
     }),
     (error) => error.name === 'AbortError',
   )
-  assert.equal(seen, controller.signal)
+  assert.ok(seen instanceof AbortSignal)
+  assert.equal(seen.aborted, true)
 })
 
 test('битый план — fallback, а не исключение', async () => {
@@ -78,7 +79,7 @@ test('битый план — fallback, а не исключение', async () 
   const cases = [
     { name: 'not array', planner: () => 'плохо' },
     { name: 'number item', planner: () => [42] },
-    { name: 'object without role', planner: () => [{ id: 'a', text: 'текст' }] },
+    { name: 'invalid role type', planner: () => [{ id: 'a', text: 'текст', role: 42 }] },
     { name: 'empty string', planner: () => [''] },
     { name: 'empty array', planner: () => [] },
     { name: 'null item', planner: () => [null] },
@@ -132,6 +133,47 @@ test('явные subtopics валидируются так же: битый/не
   assert.equal(empty.fallback, true)
   const broken = await dispatcher.dispatch({ task: 'задача', subtopics: [{ text: '', role: 'developer' }] })
   assert.equal(broken.fallback, true)
-  const missingRole = await dispatcher.dispatch({ task: 'задача', subtopics: [{ id: 'a', text: 'x' }] })
-  assert.equal(missingRole.fallback, true)
+  const invalidRole = await dispatcher.dispatch({ task: 'задача', subtopics: [{ id: 'a', text: 'x', role: 42 }] })
+  assert.equal(invalidRole.fallback, true)
+})
+
+
+test('default_role заполняет отсутствующую role у объекта подтемы', async () => {
+  const { dispatcher, calls } = setup()
+  const result = await dispatcher.dispatch({
+    task: 'задача',
+    planner: () => [{ text: 'без роли' }],
+  })
+  assert.equal(result.fallback, false)
+  assert.equal(result.subtopics[0].role, 'developer')
+  assert.deepEqual(calls, ['s1'])
+})
+
+test('timeout отменяет signal planner (кооперативный planner останавливается)', async () => {
+  const { dispatcher } = setup({ planTimeoutMs: 20 })
+  let signal
+  const result = await dispatcher.dispatch({
+    task: 'задача',
+    planner: (input) => {
+      signal = input.signal
+      return new Promise(() => {})
+    },
+  })
+  assert.equal(result.fallback, true)
+  assert.ok(signal instanceof AbortSignal)
+  assert.equal(signal.aborted, true)
+})
+
+test('maxSubtasks пишет warning, а не обрезает план молча', async () => {
+  const logs = []
+  const registry = createRoleRegistry([role()])
+  const dispatcher = createDispatcher({
+    registry,
+    providers: { developer: async () => ({ answer: 'ok', confidence: 0.9 }) },
+    config: { defaultRole: 'developer', maxSubtasks: 2 },
+    logger: (level, message) => logs.push(`${level}:${message}`),
+  })
+  const result = await dispatcher.dispatch({ task: 'задача', planner: () => ['a', 'b', 'c'] })
+  assert.equal(result.subtopics.length, 2)
+  assert.ok(logs.some((line) => line.includes('max_subtasks')), logs.join('\n'))
 })
