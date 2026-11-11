@@ -4,13 +4,16 @@
 
 **English version:** [README.en.md](README.en.md)
 
-> **Статус: MVP и фаза 5 реализованы.** Работают память (SQLite FTS5 + лексика:
+> **Статус: MVP, фаза 5 и локальный RAG готовы.** Память (SQLite FTS5 + лексика:
 > стеммер, trigram, синонимы), инструменты `memory.*` (доступны агенту через
 > `ctx.tools`) с TTL и метриками, инъекция top-k, мягкий каскад L1→L2→L3,
-> верификация, бенчмарки на фикстуре и реальном корпусе, опциональный пакет
-> векторов `dsh-memory-embeddings`. Роутер L2→L3 и диспетчер ролей реализованы за
-> флагами (по умолчанию выключены): приёмка — [`docs/dispatcher-calibration.md`](docs/dispatcher-calibration.md),
-> дизайн — [`docs/router-design.md`](docs/router-design.md), [`docs/roles-design.md`](docs/roles-design.md).
+> верификация. **Локальный RAG — по умолчанию**: пакет
+> `@vkozachek/dsh-memory-embeddings` включает локальную ONNX-модель
+> (`multilingual-e5-small`), веса скачиваются при первом запуске в
+> `~/.dsh/memory/models` и дальше работают офлайн; облачные провайдеры — опция.
+> Роутер L2→L3 и диспетчер ролей реализованы за флагами: приёмка —
+> [`docs/dispatcher-calibration.md`](docs/dispatcher-calibration.md), дизайн —
+> [`docs/router-design.md`](docs/router-design.md), [`docs/roles-design.md`](docs/roles-design.md).
 
 ## Проблема
 
@@ -277,11 +280,12 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 
 Отчёт [docs/benchmark-real.md](docs/benchmark-real.md) содержит точные числа,
 промахи и сравнение с фикстурой 015 и чистым `unicode61`. На текущем корпусе
-лексический поиск даёт hit-rate около 80% и экономию около 78% (у `unicode61` —
-около 65% и 65%); числа дрейфуют с ростом репозитория, промахи — широкие смысловые вопросы. Вывод: для точных терминов
-лексики достаточно, векторы не обязательны для MVP и остаются опцией (021/016).
-Временная БД используется всегда, если не задан `--db-path`; `DSH_MEMORY_DB`
-на `bench` не влияет.
+лексический поиск даёт hit-rate около 85% и экономию около 85% (у `unicode61` —
+около 65%); числа дрейфуют с ростом репозитория, промахи — широкие смысловые
+вопросы. Локальный гибрид (FTS5 + e5-small) даёт те же 85% при p95 инъекции
+20–30 мс и кэше модели ~129 МБ — отчёт и решение:
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md). Временная БД
+используется всегда, если не задан `--db-path`; `DSH_MEMORY_DB` на `bench` не влияет.
 
 ## Жёсткий роутер L2→L3 (017)
 

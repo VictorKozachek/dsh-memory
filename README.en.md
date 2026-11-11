@@ -4,14 +4,15 @@ Long-term project memory and a token cascade for DeepSeek Harness agents.
 
 **Русская версия:** [README.md](README.md)
 
-> **Status: MVP and phase 5 implemented.** Memory (SQLite FTS5 + lexical: stemmer,
-> trigram, synonyms), the `memory.*` tools (available to the agent via `ctx.tools`)
-> with TTL and metrics, top-k injection, the soft L1→L2→L3 cascade, verification,
-> benchmarks on a fixture and the real corpus, and an optional
-> `dsh-memory-embeddings` package. The L2→L3 router and the role dispatcher are
-> implemented behind flags (off by default): acceptance in
-> [`docs/dispatcher-calibration.md`](docs/dispatcher-calibration.md), design in
-> [`docs/router-design.md`](docs/router-design.md), [`docs/roles-design.md`](docs/roles-design.md).
+> **Status: MVP, phase 5 and local RAG are ready.** Memory (SQLite FTS5 + lexical:
+> stemmer, trigram, synonyms), the `memory.*` tools (available to the agent via
+> `ctx.tools`) with TTL and metrics, top-k injection, the soft L1→L2→L3 cascade,
+> verification. **Local RAG is the default**: `@vkozachek/dsh-memory-embeddings`
+> enables a local ONNX model (`multilingual-e5-small`); weights are downloaded on
+> the first run into `~/.dsh/memory/models` and then work offline; cloud providers
+> are optional. The L2→L3 router and the role dispatcher are implemented behind
+> flags: acceptance in [`docs/dispatcher-calibration.md`](docs/dispatcher-calibration.md),
+> design in [`docs/router-design.md`](docs/router-design.md), [`docs/roles-design.md`](docs/roles-design.md).
 
 ## Problem
 
@@ -280,12 +281,13 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 
 [docs/benchmark-real.md](docs/benchmark-real.md) contains exact numbers, misses,
 and comparisons with fixture 015 and plain `unicode61`. On the current corpus
-the lexical engine gets about 80% hit-rate and 78% savings (`unicode61`: about
-65% and 65%); the numbers drift as the repository grows, the misses are broad semantic questions. Conclusion: lexical search is enough
-for exact terms, lexical search remains the baseline; local RAG is the default
-of the optional embeddings package (spec 004). The benchmark
-always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
-affect `bench`.
+the lexical engine gets about 85% hit-rate and 85% savings (`unicode61`: about
+65%); the numbers drift as the repository grows, the misses are broad semantic
+questions. The local hybrid (FTS5 + e5-small) keeps the same 85% at a 20–30 ms
+p95 injection latency with a ~129 MB model cache — see
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md). The benchmark always
+uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not affect
+`bench`.
 
 ## Hard L2→L3 router (017)
 
