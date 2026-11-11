@@ -68,9 +68,12 @@ roles:
 только свой namespace (029); реализация — `memory.writeRole`/`memory.searchRole`/
 `memory.verifyRole`. Правила:
 
-- читать память роли можно из её namespace и из общей проектной;
+- читать — только свой namespace роли; общий проектный — только при
+  `dispatcher.shared_namespace: true` (тогда он же namespace записи);
 - писать — в namespace роли с `author: role:<name>`, `status: draft`
-  (013), `confidence ≤ 0.6`;
+  (013), `confidence ≤ 0.6`; дедупликация `writeRole` разрешена только для
+  собственного draft роли ≤ 0.6; существующая verified/human запись или запись
+  с confidence > 0.6 — явный конфликт, а не подтверждение;
 - `verified` ставится только ревью/тестом/человеком, не диспетчером;
 - провенанс (`source_path`/`source_ref`) обязателен; агрегированный ответ
   ссылается на ответы ролей как на источник.

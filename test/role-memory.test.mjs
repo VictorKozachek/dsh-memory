@@ -121,3 +121,54 @@ test('shared_namespace=true: роль пишет в общий namespace и ви
   assert.ok(memory.searchRole(developer, { query: 'общее знание' }).some((hit) => hit.id === written.id))
   assert.equal(memory.storeFor(process.cwd()).getEntry(written.id).author, 'role:developer')
 })
+
+
+test('writeRole после verifyRole: конфликт, а не verified-ответ', (t) => {
+  const { memory } = setup(t)
+  const developer = role('developer', 'role-developer')
+  const written = memory.writeRole(developer, input({ title: 'Подтверждённая', text: 'подтверждённый текст' }))
+  memory.verifyRole(developer, { id: written.id, verified_by: 'reviewer' })
+  assert.throws(
+    () => memory.writeRole(developer, input({ title: 'Подтверждённая', text: 'подтверждённый текст' })),
+    /конфликтует/,
+  )
+  assert.equal(memory.storeForRole(developer, process.cwd()).getEntry(written.id).status, 'verified')
+})
+
+test('writeRole не трогает verified/human запись с confidence > 0.6', (t) => {
+  const { memory } = setup(t)
+  const developer = role('developer', 'role-developer')
+  const store = memory.storeForRole(developer, process.cwd())
+  const human = store.insertEntry({
+    kind: 'fact',
+    title: 'Человеческая',
+    text: 'человеческий проверенный текст',
+    status: 'verified',
+    confidence: 0.9,
+    author: 'human',
+    sourcePath: 'docs/human.md',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })
+  const sourcesBefore = store.listEntrySources(human.id).length
+  assert.throws(
+    () => memory.writeRole(developer, input({ title: 'Человеческая', text: 'человеческий проверенный текст', sources: [{ path: 'docs/new.md' }] })),
+    /конфликтует/,
+  )
+  const after = store.getEntry(human.id)
+  assert.equal(after.status, 'verified')
+  assert.equal(after.author, 'human')
+  assert.equal(after.confidence, 0.9)
+  assert.equal(store.listEntrySources(human.id).length, sourcesBefore)
+})
+
+test('writeRole дедуплицирует только свой draft и остаётся draft ≤ 0.6', (t) => {
+  const { memory } = setup(t)
+  const developer = role('developer', 'role-developer')
+  const first = memory.writeRole(developer, input({ title: 'Свой draft', text: 'свой текст' }))
+  const second = memory.writeRole(developer, input({ title: 'Свой draft', text: 'свой текст' }))
+  assert.equal(second.id, first.id)
+  assert.equal(second.deduped, true)
+  assert.equal(second.status, 'draft')
+  assert.ok(memory.storeForRole(developer, process.cwd()).getEntry(first.id).confidence <= 0.6)
+})
