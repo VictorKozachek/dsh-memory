@@ -20,7 +20,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   batch_size: 32,
   timeout_ms: 5_000,
   max_retries: 2,
-  hybrid_weight: 0.5,
+  hybrid_weight: 0.1,
 })
 
 /**

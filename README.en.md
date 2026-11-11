@@ -47,9 +47,11 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # then restart DSH Web
 - planned later (outside phase 0): `dsh-memory doctor` (DB path, namespace,
   files/chunks, skipped secrets), `dsh-memory index --dry-run`, and background
   auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
-- vectors are not part of the main package: an optional
-  `@vkozachek/dsh-memory-embeddings` package (off by default) owns the provider or local
-  model; design and trust boundaries are in [docs/embeddings-design.md](docs/embeddings-design.md).
+- vectors are not part of the main package: the separate
+  `@vkozachek/dsh-memory-embeddings` package enables local RAG by default
+  (`Xenova/multilingual-e5-small`; first use downloads weights, then offline);
+  design and trust boundaries are in [docs/embeddings-design.md](docs/embeddings-design.md), local RAG acceptance:
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
 ### First query
 
@@ -217,7 +219,7 @@ dsh-memory:
     include: ["**/*.md"]
     exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
     max_chunk_tokens: 800
-  embeddings: { enabled: false, model: "" }   # legacy field; providers live in dsh-memory-embeddings
+  embeddings: { enabled: false, model: "" }   # legacy main-package field; local RAG lives in dsh-memory-embeddings (enabled:true)
   verify: { require_source_for_verified: true }
   router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
   dispatcher:
@@ -280,7 +282,8 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 and comparisons with fixture 015 and plain `unicode61`. On the current corpus
 the lexical engine gets about 80% hit-rate and 78% savings (`unicode61`: about
 65% and 65%); the numbers drift as the repository grows, the misses are broad semantic questions. Conclusion: lexical search is enough
-for exact terms, vectors are optional for the MVP (021/016). The benchmark
+for exact terms, lexical search remains the baseline; local RAG is the default
+of the optional embeddings package (spec 004). The benchmark
 always uses a temporary DB unless `--db-path` is given; `DSH_MEMORY_DB` does not
 affect `bench`.
 
@@ -322,7 +325,8 @@ code; all egress lives in the optional package, the key comes from env only, and
 `DSH_MEMORY_NO_NETWORK=1` blocks the network. Quality/latency vs FTS5:
 [docs/benchmark-embeddings.md](docs/benchmark-embeddings.md); diagnostics:
 `dsh-memory-embeddings doctor --config <file.json>`; design and criteria:
-[docs/embeddings-design.md](docs/embeddings-design.md).
+[docs/embeddings-design.md](docs/embeddings-design.md), local RAG acceptance:
+[docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
 The main package's `memory.search` is **async** (it waits for embedding
 channels); `memory.searchSync` is the synchronous variant for CLI/benchmarks
@@ -357,7 +361,7 @@ the plugin's own `metrics` table.
 - Vector search is not mandatory; FTS5 carries the MVP.
 - No custom UI.
 
-**Privacy and safety.** The index is local and by default the plugin never touches the network (vectors live only in the optional package); `*.env`,
+**Privacy and safety.** The index is local; the main package never touches the network. The optional embeddings package downloads the local model weights on first use and then works offline; cloud providers are opt-in and `DSH_MEMORY_NO_NETWORK=1` blocks egress/download. `*.env`,
 `*secret*`, `*credential*`, `.git-credentials` and keys recognized **by shape** are
 excluded from indexing: a PEM header at the start of a line
 (`-----BEGIN … PRIVATE KEY-----`), `ghp_` + 36 characters, `sk-` + 48 characters,

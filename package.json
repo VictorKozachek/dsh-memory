@@ -23,6 +23,7 @@
     "docs/benchmark-real.md",
     "docs/benchmark-mvp.md",
     "docs/benchmark-embeddings.md",
+    "docs/benchmark-local-rag.md",
     "docs/embeddings-design.md",
     "docs/router-design.md",
     "docs/roles-design.md",

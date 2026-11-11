@@ -113,7 +113,7 @@ test('конфиг: локальный RAG включён по умолчани�
     batch_size: 32,
     timeout_ms: 5_000,
     max_retries: 2,
-    hybrid_weight: 0.5,
+    hybrid_weight: 0.1,
   })
   const broken = resolveConfig({ enabled: true, provider: '', model: '' })
   assert.equal(broken.config.enabled, true)
