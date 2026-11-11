@@ -71,6 +71,14 @@ dsh-memory-embeddings:
 - `DSH_MEMORY_NO_NETWORK=1` (`true`/`on`/`yes`) запрещает egress: API и Ollama
   не вызываются, локальный провайдер работает.
 
+## Требования для local-onnx
+
+`@xenova/transformers` — optionalDependency пакета (может не установиться на
+экзотической платформе); веса скачиваются при первом `embed` в `cache_dir`.
+Для текстового pipeline `sharp` не используется, но если импорт
+`@xenova/transformers` падает на нативном `sharp`, установите совместимый
+`sharp` под платформу или задайте `model_path` с готовым артефактом.
+
 ## Doctor и приватность
 
 При включённом сетевом провайдере пакет пишет предупреждение:

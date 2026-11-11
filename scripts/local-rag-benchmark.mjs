@@ -3,8 +3,10 @@
  * `Xenova/multilingual-e5-small` на реальном корпусе.
  *
  * Одна команда: `node scripts/local-rag-benchmark.mjs --report docs/benchmark-local-rag.md`.
- * Модель берётся из `--cache` (по умолчанию /tmp/dsh-memory-models) или
- * скачивается при первом запуске; кэш не входит в npm-пакет.
+ * Prerequisites (чистый чекаут): `npm install --no-save @xenova/transformers@2.17.2`
+ * (optionalDependency пакета эмбеддингов; без него скрипт останавливается с
+ * подсказкой). Модель берётся из `--cache` (по умолчанию /tmp/dsh-memory-models)
+ * или скачивается при первом запуске; кэш не входит в npm-пакет.
  *
  * @module scripts/local-rag-benchmark
  */
@@ -119,9 +121,21 @@ model=Xenova/multilingual-e5-small; createProvider + embed на скачанно
   предупреждением; ход не падает. Кэш модели не входит в npm-пакет,
   @xenova/transformers — optional dependency.
 
+## Калибровка веса (риск)
+
+Вес 0.1 выбран на тех же 20 вопросах, на которых заявлен паритет: при 0.5
+hit-rate был 85→80. Это **измеренное решение, но без holdout** — риск подгонки
+под приёмочный набор; 0.1 не проверен на другом корпусе. Для 034 принято как
+решение, калибровка на независимом наборе — открытый вопрос.
+
 ## Воспроизведение
 
+Требования чистого чекаута: Node ≥ 22.13, сеть для первой загрузки весов,
+опциональная зависимость @xenova/transformers (ставится как optional
+dependency пакета эмбеддингов; в checkout без установки — команда ниже).
+
 \`\`\`bash
+npm install --no-save @xenova/transformers@2.17.2
 node scripts/local-rag-benchmark.mjs --cache /tmp/dsh-memory-models --report docs/benchmark-local-rag.md
 \`\`\`
 `
@@ -130,6 +144,11 @@ node scripts/local-rag-benchmark.mjs --cache /tmp/dsh-memory-models --report doc
 /** Выполнить. */
 async function main() {
   const options = parseArgs(process.argv.slice(2))
+  try {
+    await import('@xenova/transformers')
+  } catch {
+    throw new Error('нужен @xenova/transformers: npm install --no-save @xenova/transformers@2.17.2')
+  }
   const questions = loadBenchQuestions(options.questions)
   const model = DEFAULT_ONNX_MODEL
   const provider = createLocalOnnxProvider({
