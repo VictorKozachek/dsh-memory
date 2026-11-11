@@ -216,3 +216,73 @@ test('диспетчер без валидного плана/реестра в�
   assert.throws(() => createDispatcher({}), /реестр/)
   await assert.rejects(() => dispatcher.dispatch({ task: '   ' }), /task/)
 })
+
+test('vote 2:2:1: ничья разрешается только между лидерами по голосам', () => {
+  const results = [
+    { role: 'developer', answer: 'A', confidence: 0.9, priority: 20 },
+    { role: 'designer', answer: 'A', confidence: 0.8, priority: 30 },
+    { role: 'reviewer', answer: 'B', confidence: 0.7, priority: 10 },
+    { role: 'tester', answer: 'B', confidence: 0.7, priority: 10 },
+    { role: 'scientist', answer: 'C', confidence: 0.99, priority: 1 },
+  ]
+  const result = aggregateResults(results, { strategy: 'vote' })
+  assert.equal(result.answer, 'B', 'ответ с одним голосом C не должен выигрывать')
+  assert.equal(result.role, 'reviewer')
+  assert.deepEqual(result.conflicts.sort(), ['a', 'b', 'c'])
+})
+
+test('vote: при равных priority лидеров решают confidence и источники детерминированно', () => {
+  const results = [
+    { role: 'developer', answer: 'A', confidence: 0.8, priority: 10, sources: ['a'] },
+    { role: 'reviewer', answer: 'B', confidence: 0.9, priority: 10, sources: [] },
+    { role: 'tester', answer: 'B', confidence: 0.9, priority: 10, sources: [] },
+    { role: 'designer', answer: 'A', confidence: 0.8, priority: 10, sources: ['a'] },
+  ]
+  assert.equal(aggregateResults(results, { strategy: 'vote' }).answer, 'B')
+  // Повторный запуск на тех же данных не меняет победителя.
+  assert.equal(aggregateResults(results, { strategy: 'vote' }).role, 'reviewer')
+})
+
+test('role timeout — отдельный код причины, отличимый от provider failed', async () => {
+  const roles = createRoleRegistry([role({ name: 'reviewer', prompt: 'rev', responsibilities: ['ревью'] }), role({ name: 'tester', prompt: 'test', responsibilities: ['тесты'] })])
+  const dispatcher = createDispatcher({
+    registry: roles,
+    config: { timeout_ms: 20 },
+    providers: {
+      reviewer: () => new Promise(() => {}),
+      tester: async () => { throw new Error('provider down') },
+    },
+  })
+  const result = await dispatcher.dispatch({
+    task: 'задача',
+    subtopics: [
+      { id: 'a', text: 'ревью', role: 'reviewer' },
+      { id: 'b', text: 'тесты', role: 'tester' },
+    ],
+  })
+  assert.equal(result.fallback, true)
+  assert.equal(result.results.find((item) => item.role === 'reviewer').error, 'role timeout')
+  assert.equal(result.results.find((item) => item.role === 'tester').error, 'provider failed')
+})
+
+test('отмена в середине выполнения роли: провайдер видит abort, dispatch не даёт fallback', async () => {
+  const roles = createRoleRegistry([role()])
+  const controller = new AbortController()
+  let sawAbort = false
+  const dispatcher = createDispatcher({
+    registry: roles,
+    config: { timeout_ms: 500 },
+    providers: {
+      developer: ({ signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => { sawAbort = true; reject(Object.assign(new Error('aborted'), { name: 'AbortError' })) }, { once: true })
+        setTimeout(() => resolve({ answer: 'поздно', confidence: 1 }), 100)
+      }),
+    },
+  })
+  setTimeout(() => controller.abort(), 10)
+  await assert.rejects(
+    () => dispatcher.dispatch({ task: 'задача', subtopics: [{ id: 'a', text: 'код', role: 'developer' }], signal: controller.signal }),
+    (error) => error.name === 'AbortError',
+  )
+  assert.equal(sawAbort, true)
+})
