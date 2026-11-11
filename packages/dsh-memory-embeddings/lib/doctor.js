@@ -30,11 +30,18 @@ export function doctorReport(config, { provider = null, store = null, env = proc
   }
   lines.push({ level: 'info', message: `embeddings: включены (provider=${provider.kind}, model=${provider.model})` })
   if (provider.kind === 'local' || provider.kind === 'local-onnx') {
-    lines.push({ level: 'info', message: 'локальные эмбеддинги: сеть и ключи не используются' })
-    if (provider.kind === 'local-onnx') {
+    if (provider.kind === 'local') {
+      lines.push({ level: 'info', message: 'локальные эмбеддинги: сеть и ключи не используются' })
+    } else {
       const cacheDir = provider.cacheDir ?? config.cache_dir ?? DEFAULT_CACHE_DIR
       const modelPath = provider.model_path ?? config.model_path ?? ''
       const cached = modelPath !== '' ? existsSync(modelPath) : isModelCached(cacheDir, provider.model)
+      lines.push({
+        level: 'info',
+        message: cached
+          ? 'локальные эмбеддинги: модель в кэше, сеть и ключи не используются'
+          : 'локальные эмбеддинги: ключи не используются; модель ещё не в кэше — для загрузки нужна сеть',
+      })
       lines.push({
         level: 'info',
         message: `local-onnx: cache_dir=${cacheDir}${modelPath === '' ? '' : `, model_path=${modelPath}`}, статус=${cached ? 'скачана' : 'нет в кэше'}`,

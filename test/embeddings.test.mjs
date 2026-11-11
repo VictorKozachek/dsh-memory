@@ -147,7 +147,7 @@ test('apply: disabled ничего не регистрирует; local реги
   assert.equal(channels.length, 1)
   assert.equal(channels[0].name, 'embeddings')
   assert.ok(logs.some((line) => line.includes('локальные эмбеддинги')))
-  assert.ok(logs.some((line) => line.includes('векторов: 0, без векторов: 1')), logs.join('\n'))
+  assert.ok(!logs.some((line) => line.includes('векторов:')), 'apply не должен показывать count чужого namespace')
 })
 
 test('apply: нет ключа API — предупреждение и без канала (FTS5)', (t) => {

@@ -113,6 +113,8 @@ test('doctor: нет кэша — одно предупреждение о пе�
   assert.equal(warnings.length, 1, 'ровно одно предупреждение, без спама')
   assert.match(warnings[0].message, /100 МБ/)
   assert.match(warnings[0].message, /Hugging Face/)
+  assert.ok(!lines.some((line) => line.message.includes('сеть и ключи не используются')), 'при первой загрузке нельзя утверждать, что сеть не используется')
+  assert.ok(lines.some((line) => line.message.includes('модель ещё не в кэше')))
 
   const noDownload = doctorReport(
     resolveConfig({ enabled: true, provider: 'local-onnx', model: MODEL, cache_dir: cacheDir, allow_download: false }).config,
