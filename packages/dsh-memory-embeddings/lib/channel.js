@@ -109,8 +109,10 @@ export function createAsyncChannel({
       // Первый поиск/событие entries-changed — досчитываем отсутствующие
       // векторы; обычный поиск не сканирует таблицу на каждом ходе.
       if (backfill && !prepared.has(store)) {
-        await backfillEmbeddings({ store, provider, model, batch_size, log })
-        prepared.add(store)
+        const summary = await backfillEmbeddings({ store, provider, model, batch_size, log })
+        // Если часть батчей не посчитана, не кэшируем успех: следующий поиск
+        // повторит досчёт; entries-changed тоже сбрасывает prepared.
+        if (summary.failed === 0) prepared.add(store)
       }
       const { vectors } = await provider.embed([query])
       const queryVector = vectors?.[0]

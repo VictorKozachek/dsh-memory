@@ -10,6 +10,7 @@
     "./router": "./lib/router.js",
     "./roles": "./lib/roles.js",
     "./tools": "./lib/tools.js",
+    "./store": "./lib/store.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },

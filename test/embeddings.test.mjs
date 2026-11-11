@@ -142,10 +142,12 @@ test('apply: disabled ничего не регистрирует; local реги
   assert.equal(channels.length, 0)
   assert.ok(logs.some((line) => line.includes('выключены')))
 
+  add(store, 'Векторы', 'запись для doctor')
   apply(ctx, { enabled: true, provider: 'local', model: 'local-hash-128' })
   assert.equal(channels.length, 1)
   assert.equal(channels[0].name, 'embeddings')
   assert.ok(logs.some((line) => line.includes('локальные эмбеддинги')))
+  assert.ok(!logs.some((line) => line.includes('векторов:')), 'apply не должен показывать count чужого namespace')
 })
 
 test('apply: нет ключа API — предупреждение и без канала (FTS5)', (t) => {
@@ -250,7 +252,8 @@ test('doctor предупреждает об отправке текста дл�
   const onnx = doctorReport(resolveConfig({ enabled: true, provider: 'local-onnx', model: 'm' }).config, {
     provider: { kind: 'local-onnx', model: 'm' },
   })
-  assert.ok(onnx.every((line) => line.level === 'info'), 'офлайн local-onnx не должен пугать отправкой текста')
+  assert.ok(onnx.every((line) => !line.message.includes('будут отправлены')), 'офлайн local-onnx не должен пугать отправкой текста')
+  assert.ok(onnx.some((line) => line.message.includes('первая загрузка')), 'первая загрузка должна быть предупреждением')
 })
 
 test('отчёт эмбеддингов: качество и латентность против FTS5, дефолт выключен', () => {

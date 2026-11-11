@@ -122,7 +122,10 @@ export function apply(ctx, config = {}) {
     return
   }
 
-  for (const line of doctorReport(options, { provider })) log(ctx, line.level, line.message)
+  // На apply-пути нет надёжного workspace сессии (process.cwd плагина не равен
+  // cwd хода при namespace:auto), поэтому число векторов здесь не показываем:
+  // его даёт doctor --db/--namespace или doctorReport(store) из интеграции.
+  for (const line of doctorReport(options, { provider, env: process.env })) log(ctx, line.level, line.message)
 
   try {
     // Канал получает store из каждого вызова memory.search — не замыкаем
