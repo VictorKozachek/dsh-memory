@@ -12,7 +12,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
+import { BENCH_WORKSPACE, createBenchStore, loadBenchQuestions, runBenchmark } from '../lib/benchmark.js'
 import { createLiveDispatcher } from '../lib/live-dispatcher.js'
+import { indexWorkspace } from '../lib/indexer.js'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const FIXTURE_QUESTIONS = join(ROOT, 'bench', 'questions', 'questions.json')
@@ -42,7 +44,9 @@ function parseArgs(argv) {
 function loadQuestions(file) {
   const parsed = JSON.parse(readFileSync(file, 'utf8'))
   if (!Array.isArray(parsed)) throw new Error(`ожидался массив вопросов: ${file}`)
-  return parsed.map((item) => String(item.query ?? item)).filter((query) => query.trim() !== '')
+  return parsed
+    .map((item) => ({ query: String(item.query ?? item), source: String(item.source ?? '') }))
+    .filter((item) => item.query.trim() !== '')
 }
 
 /** Роли приёмки. */
@@ -74,25 +78,25 @@ async function runScenario(questions, { enabled = true, providers = true } = {})
     },
   })
   if (providers) {
-    live.registerProvider('developer', async () => {
+    live.registerProvider('developer', async ({ subtopic }) => {
       await new Promise((resolve) => setTimeout(resolve, 1))
       return { answer: 'mock-answer', confidence: 0.9, sources: ['mock'] }
     })
   }
   const rows = []
-  for (const query of questions) {
+  for (const question of questions) {
     const startedAt = performance.now()
-    const result = await live.dispatch({ task: query })
+    const result = await live.dispatch({ task: question.query })
     rows.push({
       latencyMs: performance.now() - startedAt,
       fallback: result.fallback === true,
       coverage: result.fallback === false && typeof result.answer === 'string' && result.answer.trim() !== '',
+      quality: result.fallback === false && question.source !== '' && Array.isArray(result.sources) && result.sources.includes(question.source),
       reason: result.reason,
     })
   }
   return summarize(rows)
 }
-
 /** Сводка сценария. */
 function summarize(rows) {
   const latencies = rows.map((row) => row.latencyMs)
@@ -100,6 +104,7 @@ function summarize(rows) {
     queries: rows.length,
     fallbackRate: rows.length === 0 ? 0 : rows.filter((row) => row.fallback).length / rows.length,
     coverageRate: rows.length === 0 ? 0 : rows.filter((row) => row.coverage).length / rows.length,
+    qualityRate: rows.length === 0 ? 0 : rows.filter((row) => row.quality).length / rows.length,
     p50Ms: percentile(latencies, 0.5),
     p95Ms: percentile(latencies, 0.95),
     reasons: [...new Set(rows.map((row) => row.reason).filter(Boolean))],
@@ -120,7 +125,7 @@ function percentile(values, p) {
 const percent = (value) => `${(value * 100).toFixed(1)}%`
 
 /** Markdown-отчёт. */
-function renderReport({ fixture, real, disabled, unavailable }) {
+function renderReport({ fixture, real, quality, benchmark, disabled, unavailable }) {
   return `# Калибровка порогов и приёмка фазы 5
 
 Отчёт задачи 030. Данные получены офлайн-скриптом
@@ -144,9 +149,9 @@ function renderReport({ fixture, real, disabled, unavailable }) {
 
 | Проверка | Результат |
 |---|---|
-| Полный набор тестов | \`npm test\` — **272/272 pass** на этом срезе |
+| Полный набор тестов | \`npm test\` — зелёный на срезе приёмки (см. актуальный прогон) |
 | Hook при \`dispatcher.enabled:false\` | диспетчер не вызывается; mock AgentLoop идёт прямым L3 |
-| Поведение пакета | сервис \`memory\`, инъекция, поиск и каскад не меняются; \`docs/benchmark-real.md\` — 65% hit-rate, 65% экономии |
+| Поведение пакета | сервис memory, инъекция, поиск и каскад не меняются; docs/benchmark-real.md — ${benchmark.hitRate} hit-rate, ${benchmark.savings} экономии |
 | Регресс дефолта | дефолт \`enabled:false\` в config; регресс-тесты зелёные |
 
 Сценарий \`disabled\` (флаг выключен): fallback ${percent(disabled.fallbackRate)}
@@ -155,14 +160,16 @@ function renderReport({ fixture, real, disabled, unavailable }) {
 
 ## 3. Приёмка: флаг on, покрытый план
 
-| Корпус | Вопросов | Fallback | Покрытие ответом | p50 | p95 |
-|---|---:|---:|---:|---:|---:|
-| фикстурный | ${fixture.queries} | ${percent(fixture.fallbackRate)} | ${percent(fixture.coverageRate)} | ${fixture.p50Ms.toFixed(2)} мс | ${fixture.p95Ms.toFixed(2)} мс |
-| реальный | ${real.queries} | ${percent(real.fallbackRate)} | ${percent(real.coverageRate)} | ${real.p50Ms.toFixed(2)} мс | ${real.p95Ms.toFixed(2)} мс |
+| Корпус | Вопросов | Fallback | Покрытие ответом | L1-качество (source) | p50 | p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| фикстурный | ${fixture.queries} | ${percent(fixture.fallbackRate)} | ${percent(fixture.coverageRate)} | ${percent(quality.fixture)} | ${fixture.p50Ms.toFixed(2)} мс | ${fixture.p95Ms.toFixed(2)} мс |
+| реальный | ${real.queries} | ${percent(real.fallbackRate)} | ${percent(real.coverageRate)} | ${percent(quality.real)} | ${real.p50Ms.toFixed(2)} мс | ${real.p95Ms.toFixed(2)} мс |
 
 Провайдер отвечает детерминированно, поэтому fallback 0% и покрытие 100% —
-механическая проверка контракта, а не качество ответа. Латентность — мок с
-задержкой 1 мс; реальная стоимость зависит от моделей/провайдера.
+механическая проверка контракта. **Качество** — L1 hit-rate бенчмарка 015:
+доля вопросов, где найден ожидаемый source; это корректность поиска памяти,
+а не семантическое качество ответа модели (живого провайдера нет). Латентность
+— мок с задержкой 1 мс; реальная стоимость зависит от моделей/провайдера.
 
 ## 4. Приёмка: fallback on
 
@@ -199,30 +206,66 @@ node scripts/dispatcher-acceptance.mjs --report docs/dispatcher-calibration.md
 `
 }
 
+/** Прочитать фактические hit-rate/экономию из benchmark-real.md. */
+function readBenchmarkSummary(file) {
+  try {
+    const text = readFileSync(file, 'utf8')
+    const hitRate = text.match(/\| hit-rate L1 \| ([0-9.]+%) \|/u)?.[1] ?? '—'
+    const savings = text.match(/\| Экономия токенов \| ([0-9.]+%) \|/u)?.[1] ?? '—'
+    return { hitRate, savings }
+  } catch {
+    return { hitRate: '—', savings: '—' }
+  }
+}
+
+/** Качество L1: доля вопросов, где найден ожидаемый source (бенчмарк 015). */
+function measureQuality(workspace, questionsFile) {
+  const bench = createBenchStore()
+  try {
+    indexWorkspace({ workspace, store: bench.store })
+    const result = runBenchmark({
+      store: bench.store,
+      workspace,
+      questions: loadBenchQuestions(questionsFile),
+    })
+    return result.hitRate
+  } finally {
+    bench.dispose()
+  }
+}
+
 /** Выполнить. */
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   const fixture = loadQuestions(options.fixture)
   const real = loadQuestions(options.real)
 
-  const fixtureCovered = await runScenario(fixture)
-  const realCovered = await runScenario(real)
-  const disabled = await runScenario(fixture, { enabled: false, providers: false })
-  const unavailableFixture = await runScenario(fixture, { providers: false })
-  const unavailableReal = await runScenario(real, { providers: false })
+  try {
+    const fixtureQuality = measureQuality(BENCH_WORKSPACE, options.fixture)
+    const realQuality = measureQuality(ROOT, options.real)
+    const fixtureCovered = await runScenario(fixture)
+    const realCovered = await runScenario(real)
+    const disabled = await runScenario(fixture, { enabled: false, providers: false })
+    const unavailableFixture = await runScenario(fixture, { providers: false })
+    const unavailableReal = await runScenario(real, { providers: false })
 
-  const report = renderReport({
-    fixture: fixtureCovered,
-    real: realCovered,
-    disabled,
-    unavailable: { fixture: unavailableFixture, real: unavailableReal },
-  })
-  mkdirSync(dirname(options.report), { recursive: true })
-  writeFileSync(options.report, report, 'utf8')
-  console.log(`fixture: fallback ${percent(fixtureCovered.fallbackRate)}, coverage ${percent(fixtureCovered.coverageRate)}, p95 ${fixtureCovered.p95Ms.toFixed(2)} ms`)
-  console.log(`real: fallback ${percent(realCovered.fallbackRate)}, coverage ${percent(realCovered.coverageRate)}, p95 ${realCovered.p95Ms.toFixed(2)} ms`)
-  console.log(`fallback fixture: ${percent(unavailableFixture.fallbackRate)}; fallback real: ${percent(unavailableReal.fallbackRate)}`)
-  console.log(`отчёт: ${options.report}`)
+    const report = renderReport({
+      fixture: fixtureCovered,
+      real: realCovered,
+      quality: { fixture: fixtureQuality, real: realQuality },
+      benchmark: readBenchmarkSummary(join(ROOT, 'docs', 'benchmark-real.md')),
+      disabled,
+      unavailable: { fixture: unavailableFixture, real: unavailableReal },
+    })
+    mkdirSync(dirname(options.report), { recursive: true })
+    writeFileSync(options.report, report, 'utf8')
+    console.log(`fixture: fallback ${percent(fixtureCovered.fallbackRate)}, L1 quality ${percent(fixtureQuality)}, p95 ${fixtureCovered.p95Ms.toFixed(2)} ms`)
+    console.log(`real: fallback ${percent(realCovered.fallbackRate)}, L1 quality ${percent(realQuality)}, p95 ${realCovered.p95Ms.toFixed(2)} ms`)
+    console.log(`fallback fixture: ${percent(unavailableFixture.fallbackRate)}; fallback real: ${percent(unavailableReal.fallbackRate)}`)
+    console.log(`отчёт: ${options.report}`)
+  } finally {
+    // качество меряется на своих временных store
+  }
 }
 
 await main()
