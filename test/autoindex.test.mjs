@@ -151,3 +151,25 @@ test('hook: первый ход планирует индексацию, вто�
     assert.equal(queue.length, 0)
   })()
 })
+
+test('ошибка после частичной индексации: повтор планируется, несмотря на entries > 0', () => {
+  let entries = 0
+  let attempt = 0
+  const store = { countEntries: () => entries }
+  const { scheduler, queue, logs } = schedulerWithQueue(() => {
+    attempt += 1
+    entries = attempt
+    if (attempt === 1) throw new Error('disk full after write')
+    return { files: 2, indexed: 2, unchanged: 0 }
+  })
+  assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/ws', config: { index: { autoindex: true } }, env: {} }), true)
+  assert.doesNotThrow(() => queue[0]())
+  assert.equal(entries, 1)
+  assert.ok(logs.some((line) => line.startsWith('warn:автоиндексация не выполнена')))
+  // Частичный индекс уже непустой, но failed-state требует retry.
+  assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/ws', config: { index: { autoindex: true } }, env: {} }), true)
+  queue[1]()
+  assert.equal(attempt, 2)
+  assert.equal(entries, 2)
+  assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/ws', config: { index: { autoindex: true } }, env: {} }), false)
+})
