@@ -46,13 +46,17 @@ function setup(t, { withTools = true } = {}) {
 test('apply регистрирует пять memory.* с входными схемами и описаниями', (t) => {
   const { registered, byName } = setup(t)
   assert.deepEqual(registered.map((definition) => definition.name).sort(), [
-    'memory.invalidate',
-    'memory.search',
-    'memory.stats',
-    'memory.verify',
-    'memory.write',
+    'memory_invalidate',
+    'memory_search',
+    'memory_stats',
+    'memory_verify',
+    'memory_write',
   ])
-  const search = byName.get('memory.search')
+  for (const definition of registered) {
+    assert.match(definition.name, /^[a-zA-Z0-9_-]+$/, `имя инструмента ${definition.name} должно проходить API-паттерн`)
+  }
+
+  const search = byName.get('memory_search')
   assert.equal(search.parameters.type, 'object')
   assert.ok(search.parameters.required.includes('query'))
   assert.deepEqual(search.parameters.properties.status.enum, ['verified', 'all'])
@@ -67,7 +71,7 @@ test('apply регистрирует пять memory.* с входными сх�
   assert.ok(item.required.includes('snippet'))
   assert.deepEqual(item.properties.source_path.oneOf.map((branch) => branch.type), ['string', 'null'])
   assert.deepEqual(item.properties.status.enum, ['verified', 'draft'])
-  const statsSchema = byName.get('memory.stats').output.schema
+  const statsSchema = byName.get('memory_stats').output.schema
   assert.deepEqual(Object.keys(statsSchema.properties).sort(), [
     'by_status', 'dispatch', 'entries', 'hit_rate', 'injected_tokens', 'tokens_saved_estimate',
   ])
@@ -78,13 +82,13 @@ test('apply регистрирует пять memory.* с входными сх�
     'by_role', 'count', 'fallback_rate', 'p50_ms', 'p95_ms',
   ])
   assert.deepEqual(statsSchema.properties.dispatch.properties.p50_ms.oneOf.map((branch) => branch.type), ['number', 'null'])
-  assert.ok(byName.get('memory.write').parameters.required.includes('kind'))
-  assert.deepEqual(byName.get('memory.write').parameters.properties.status.enum, ['draft'])
-  assert.ok(byName.get('memory.verify').parameters.required.includes('verified_by'))
-  assert.equal(typeof byName.get('memory.stats').execute, 'function')
+  assert.ok(byName.get('memory_write').parameters.required.includes('kind'))
+  assert.deepEqual(byName.get('memory_write').parameters.properties.status.enum, ['draft'])
+  assert.ok(byName.get('memory_verify').parameters.required.includes('verified_by'))
+  assert.equal(typeof byName.get('memory_stats').execute, 'function')
 })
 
-test('memory.search execute: namespace хода, сниппет ≤ 300', async (t) => {
+test('memory_search execute: namespace хода, сниппет ≤ 300', async (t) => {
   const { memory, byName, exec, dir } = setup(t)
   const long = 'память проекта '.repeat(40)
   memory.storeFor(dir).insertEntry({
@@ -95,16 +99,16 @@ test('memory.search execute: namespace хода, сниппет ≤ 300', async 
     confidence: 1,
     sourcePath: 'docs/memory.md',
   })
-  const results = await byName.get('memory.search').execute({ query: 'память проекта' }, exec)
+  const results = await byName.get('memory_search').execute({ query: 'память проекта' }, exec)
   assert.ok(results.length > 0)
   assert.ok(results[0].snippet.length <= 300)
   assert.equal(results[0].status, 'verified')
   assert.equal(typeof results[0].id, 'number')
 })
 
-test('memory.write: draft, потолок 0.6 для модели, источник; search видит только с all', async (t) => {
+test('memory_write: draft, потолок 0.6 для модели, источник; search видит только с all', async (t) => {
   const { memory, byName, exec, dir } = setup(t)
-  const written = await byName.get('memory.write').execute({
+  const written = await byName.get('memory_write').execute({
     title: 'Новое знание',
     text: 'уникальное знание инструмента',
     kind: 'fact',
@@ -113,45 +117,45 @@ test('memory.write: draft, потолок 0.6 для модели, источн�
   }, exec)
   assert.equal(written.status, 'draft')
   const entry = memory.storeFor(dir).getEntry(written.id)
-  assert.equal(entry.author, 'model:memory.write')
+  assert.equal(entry.author, 'model:memory_write')
   assert.ok(entry.confidence <= 0.6)
-  const hidden = await byName.get('memory.search').execute({ query: 'уникальное знание инструмента' }, exec)
+  const hidden = await byName.get('memory_search').execute({ query: 'уникальное знание инструмента' }, exec)
   assert.equal(hidden.length, 0, 'по умолчанию только verified')
-  const all = await byName.get('memory.search').execute({ query: 'уникальное знание инструмента', status: 'all' }, exec)
+  const all = await byName.get('memory_search').execute({ query: 'уникальное знание инструмента', status: 'all' }, exec)
   assert.ok(all.some((item) => item.id === written.id))
 })
 
-test('memory.verify и memory.invalidate execute', async (t) => {
+test('memory_verify и memory_invalidate execute', async (t) => {
   const { byName, exec } = setup(t)
-  const written = await byName.get('memory.write').execute({
+  const written = await byName.get('memory_write').execute({
     title: 'Для проверки',
     text: 'текст для verify',
     kind: 'fact',
     sources: [{ path: 'docs/verify.md' }],
   }, exec)
-  const verified = await byName.get('memory.verify').execute({ id: written.id, verified_by: 'reviewer' }, exec)
+  const verified = await byName.get('memory_verify').execute({ id: written.id, verified_by: 'reviewer' }, exec)
   assert.deepEqual(verified, { id: written.id, status: 'verified' })
 
-  const affected = await byName.get('memory.invalidate').execute({ path: 'docs/verify.md' }, exec)
+  const affected = await byName.get('memory_invalidate').execute({ path: 'docs/verify.md' }, exec)
   assert.equal(affected.affected, 1)
 })
 
-test('memory.stats и ошибки инструментов: ошибка не ломает регистрацию', async (t) => {
+test('memory_stats и ошибки инструментов: ошибка не ломает регистрацию', async (t) => {
   const { byName, exec } = setup(t)
-  const stats = await byName.get('memory.stats').execute({}, exec)
+  const stats = await byName.get('memory_stats').execute({}, exec)
   assert.equal(typeof stats.entries, 'number')
   assert.ok(Object.hasOwn(stats, 'dispatch'))
 
   await assert.rejects(
-    () => byName.get('memory.write').execute({ title: '', text: 'x', kind: 'fact' }, exec),
+    () => byName.get('memory_write').execute({ title: '', text: 'x', kind: 'fact' }, exec),
     /title/,
   )
   await assert.rejects(
-    () => byName.get('memory.write').execute({ title: 'x', text: 'x', kind: 'bogus' }, exec),
+    () => byName.get('memory_write').execute({ title: 'x', text: 'x', kind: 'bogus' }, exec),
     /kind/,
   )
   await assert.rejects(
-    () => byName.get('memory.verify').execute({ id: 999, verified_by: 'session-1' }, exec),
+    () => byName.get('memory_verify').execute({ id: 999, verified_by: 'session-1' }, exec),
     /verified_by/,
   )
   assert.equal(byName.size, 5)
@@ -172,18 +176,18 @@ test('fallback: raw-схемы проходят контракт ToolDefinition 
   }
 
   // Fallback не полагается на валидатор DSH: execute сам проверяет аргументы.
-  await assert.rejects(() => byName.get('memory.search').execute({}, exec), /invalid arguments: query/)
-  await assert.rejects(() => byName.get('memory.search').execute({ query: 'x', k: '1' }, exec), /k must be a number/)
-  await assert.rejects(() => byName.get('memory.search').execute({ query: 'x', status: 'stale' }, exec), /status must be one of/)
+  await assert.rejects(() => byName.get('memory_search').execute({}, exec), /invalid arguments: query/)
+  await assert.rejects(() => byName.get('memory_search').execute({ query: 'x', k: '1' }, exec), /k must be a number/)
+  await assert.rejects(() => byName.get('memory_search').execute({ query: 'x', status: 'stale' }, exec), /status must be one of/)
 
   // Реальные выходы проходят output-схему (не только объявлены).
   memory.storeFor(dir).insertEntry({
     kind: 'fact', title: 'Схема', text: 'выход проходит схему', status: 'verified', confidence: 1, sourcePath: 'docs/schema.md',
   })
-  const searchOutput = await byName.get('memory.search').execute({ query: 'схема' }, exec)
-  assert.deepEqual(validateRawValue(byName.get('memory.search').output.schema, searchOutput, ''), [])
-  const statsOutput = await byName.get('memory.stats').execute({}, exec)
-  assert.deepEqual(validateRawValue(byName.get('memory.stats').output.schema, statsOutput, ''), [])
+  const searchOutput = await byName.get('memory_search').execute({ query: 'схема' }, exec)
+  assert.deepEqual(validateRawValue(byName.get('memory_search').output.schema, searchOutput, ''), [])
+  const statsOutput = await byName.get('memory_stats').execute({}, exec)
+  assert.deepEqual(validateRawValue(byName.get('memory_stats').output.schema, statsOutput, ''), [])
 })
 
 /** Портируемый контракт raw ToolDefinition: без author-only required:true. */
@@ -271,7 +275,7 @@ test('tools появляется после apply: ctx.inject дожидаетс
   callbacks[0]({ tools })
   assert.equal(registered.length, 5)
   assert.deepEqual(registered.map((definition) => definition.name).sort(), [
-    'memory.invalidate', 'memory.search', 'memory.stats', 'memory.verify', 'memory.write',
+    'memory_invalidate', 'memory_search', 'memory_stats', 'memory_verify', 'memory_write',
   ])
   // Повторный callback (пересоздание сервиса) не дублирует регистрацию.
   callbacks[0]({ tools })

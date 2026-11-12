@@ -55,7 +55,7 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # затем перезап
 #    --namespace задаёт имя памяти; без него берётся имя каталога воркспейса.
 dsh-memory index --workspace . --namespace dsh-memory --json
 
-# 2. Поиск по памяти. В профиле DSH это делает инструмент memory.search;
+# 2. Поиск по памяти. В профиле DSH это делает инструмент memory_search;
 #    в checkout пакета тот же вызов проверяется напрямую:
 node --input-type=module -e "
   import { openStore } from './lib/store.js'
@@ -65,7 +65,7 @@ node --input-type=module -e "
 "
 ```
 
-Запрос `memory.search` выглядит так: `{ "query": "каскад L0 L1 L2 L3", "k": 3 }`;
+Запрос `memory_search` выглядит так: `{ "query": "каскад L0 L1 L2 L3", "k": 3 }`;
 ответ — массив сниппетов `[{ id, title, snippet, source_path, source_ref, status,
 confidence, score }]`, полный текст документа в выдачу не попадает.
 
@@ -97,7 +97,7 @@ confidence, score }]`, полный текст документа в выдач�
 - **write-back.** Успешный ответ дистиллируется в запись, получает провенанс и статус `draft`;
   после PASS ревью/теста или подтверждения человеком запись становится `verified` и живёт на L1.
 
-**Правило каскада.** Перед ответом моделью — `memory.search` (L1). Промах — пресет `triage`
+**Правило каскада.** Перед ответом моделью — `memory_search` (L1). Промах — пресет `triage`
 (L2: дешёвая модель `deepseek-v4-flash`, контракт `ANSWER | NO_ANSWER`; маркеры распознаются
 с хвостовой пунктуацией — `NO_ANSWER.` это отказ, а не ответ). `NO_ANSWER` — основная
 модель (L3). Ответ L2/L3 дистиллируется в память как `draft` с источником (write-back), `verified`
@@ -108,10 +108,10 @@ confidence, score }]`, полный текст документа в выдач�
 
 Запись от модели (write-back каскада) создаётся только как `draft` и `confidence ≤ 0.6`;
 write-back обязан передавать `author` вида `cascade:*`/`model*`/`triage*`, иначе запись
-неотличима от человеческой. `verified` ставится исключительно `memory.verify`: нужен
+неотличима от человеческой. `verified` ставится исключительно `memory_verify`: нужен
 источник и подтвердитель — PASS ревью/теста (`reviewer:…`/`verifier:…`/`tester:…`) или
 человек (`human`); голый id сессии не принимается, чтобы сессия не могла подтвердить саму
-себя. `memory.write` не умеет писать `verified` напрямую. Ручное исключение: только
+себя. `memory_write` не умеет писать `verified` напрямую. Ручное исключение: только
 `human` может подтвердить запись без источника при `requireSource: false` — это явный
 человеческий акт, а не PASS ревью/теста.
 
@@ -139,19 +139,19 @@ write-back обязан передавать `author` вида `cascade:*`/`mode
 
 | Инструмент | Назначение | Вход → выход |
 |---|---|---|
-| `memory.search` | поиск по памяти | `{ query, k?, kinds?, status?, namespace? }` → `[{ id, title, snippet, source_path, source_ref, status, confidence, score }]`, сниппет ≤ 300 символов |
-| `memory.write` | записать знание | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
-| `memory.invalidate` | пометить устаревшее | `{ path?, ref? }` → `{ affected }` |
-| `memory.verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
+| `memory_search` | поиск по памяти | `{ query, k?, kinds?, status?, namespace? }` → `[{ id, title, snippet, source_path, source_ref, status, confidence, score }]`, сниппет ≤ 300 символов |
+| `memory_write` | записать знание | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
+| `memory_invalidate` | пометить устаревшее | `{ path?, ref? }` → `{ affected }` |
+| `memory_verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
+| `memory_stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
 Инструменты регистрируются в `ctx.tools`, когда сервис `tools` становится
 доступен: `apply` ждёт его через `ctx.inject(['tools'], …)` (сервис может
 появиться позже apply, как в профиле desktop). Если `tools` не появился, плагин
 грузится как раньше — API-модули `memory.*` остаются доступны через `ctx.memory`.
-`memory.search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
+`memory_search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
 с пометкой статуса.
-`memory.write` без источника — только `draft` с confidence < 0.5; при совпадении хэша растёт confidence.
+`memory_write` без источника — только `draft` с confidence < 0.5; при совпадении хэша растёт confidence.
 
 ## Инъекция контекста
 
@@ -237,7 +237,7 @@ dsh-memory:
     preset: triage                                 # presets/triage.json: дешёвая модель, ANSWER | NO_ANSWER
     model: ""                                      # перекрывает модель пресета (deepseek-v4-flash)
     max_tokens: 300
-    write_back: true                               # ответ L2/L3 → memory.write (draft с источником)
+    write_back: true                               # ответ L2/L3 → memory_write (draft с источником)
 ```
 
 Переменные окружения: `DSH_MEMORY_DB`, `DSH_MEMORY_INJECT`, `DSH_MEMORY_TOP_K`.
@@ -307,9 +307,9 @@ dsh-memory bench --workspace . --questions bench/questions/real.json \
 ошиблась/не ответила или ход отменён — hook не вмешивается, ход уходит на L3
 (или завершается по отмене). Ответ диспетчера добавляется в ход как
 plugin-сообщение `dsh-memory-dispatcher` и пишется в `metrics` как L2.
-Write-back роли (`memory.writeRole`) идёт только `draft` с `author: role:<name>`
+Write-back роли (`memory_writeRole`) идёт только `draft` с `author: role:<name>`
 и `confidence ≤ 0.6` в namespace роли (или в общий при
-`dispatcher.shared_namespace: true`); `verified` — только через `memory.verify`.
+`dispatcher.shared_namespace: true`); `verified` — только через `memory_verify`.
 Флаг выключен — поведение пакета прежнее; дизайн — [docs/roles-design.md](docs/roles-design.md),
 приёмка и пороги — [docs/dispatcher-calibration.md](docs/dispatcher-calibration.md).
 
@@ -329,8 +329,8 @@ ONNX/WASM, веса скачиваются при первом использо�
 `dsh-memory-embeddings doctor --config <файл.json>`; дизайн и критерии —
 [docs/embeddings-design.md](docs/embeddings-design.md).
 
-Сервис `memory.search` в основном пакете **асинхронный** (ждёт async-каналы
-эмбеддингов); для CLI/бенчмарка есть синхронный `memory.searchSync`, который
+Сервис `memory_search` в основном пакете **асинхронный** (ждёт async-каналы
+эмбеддингов); для CLI/бенчмарка есть синхронный `memory_searchSync`, который
 async-каналы пропускает.
 
 ## Метрики
@@ -344,7 +344,7 @@ async-каналы пропускает.
 | Память не тормозит ход | добавка к первому токену | ≤ 50 мс |
 | Инъекция остаётся компактной | размер блока инъекции | ≤ 600 токенов |
 
-Семантика `memory.stats`: `injected_tokens` — расход на инъекции памяти (каждый
+Семантика `memory_stats`: `injected_tokens` — расход на инъекции памяти (каждый
 ход добавляет снапшот-блок в историю, поэтому расход копится); `tokens_saved_estimate`
 — экономия только там, где ход обслужен L2 вместо L3, в MVP остаётся 0 до
 калибровки бенчмарком 015. `dsh-token-meter` (если доступен) используется как
@@ -367,17 +367,17 @@ PEM-заголовок в начале строки (`-----BEGIN … PRIVATE KEY
 символов, `sk-` + 48 символов, `AKIA` + 16 заглавных. Голые упоминания маркеров и
 PEM-заголовок посреди описания (README, спека, карточки задач) секретом не
 считаются — иначе документация проекта выпадала бы из памяти; ключ в inline-code,
-списке или fenced-блоке по-прежнему отсекается. `memory.search` отдаёт только
+списке или fenced-блоке по-прежнему отсекается. `memory_search` отдаёт только
 сниппеты. При ошибке плагин молчит, ход продолжается без памяти.
 
 ## Дорожная карта
 
 | Фаза | Содержание | Приёмка |
 |---|---|---|
-| 0 | скелет плагина, `memory.search`/`memory.write`, SQLite FTS5, CLI `index` | `index` строит индекс по документации, поиск находит три известных определения |
-| 1 | инъекция top-k, `memory.stats`, дедупликация, `stale` по хэшу | hit-rate ≥ 20% на 20 запросах, инъекция ≤ 600 токенов |
+| 0 | скелет плагина, `memory_search`/`memory_write`, SQLite FTS5, CLI `index` | `index` строит индекс по документации, поиск находит три известных определения |
+| 1 | инъекция top-k, `memory_stats`, дедупликация, `stale` по хэшу | hit-rate ≥ 20% на 20 запросах, инъекция ≤ 600 токенов |
 | 2 | статусы `draft`/`verified`, пресеты triage, правила в `AGENTS.md` | ни одной `verified`-записи без источника, экономия измерена |
-| 3 | индексация `.kanban` и решений, TTL, `memory.invalidate` | устаревшие записи не выдаются |
+| 3 | индексация `.kanban` и решений, TTL, `memory_invalidate` | устаревшие записи не выдаются |
 | 4 | лексический поиск, опциональный пакет эмбеддингов, жёсткий роутер, дашборд | −25% токенов на повторяющихся вопросах без роста ошибок |
 | 5 | диспетчер и специализированные сабмодели | предложение, критерии приёмки не зафиксированы |
 
@@ -402,8 +402,8 @@ PEM-заголовок посреди описания (README, спека, ка
 
 Фаза 0 закрыта: скелет плагина (пакет, bundle-ряд, `apply`), хранилище SQLite
 (схема, миграции, namespace, FTS5), индексатор документов с CLI `index`,
-инструменты `memory.search` / `memory.write` / `memory.verify` /
-`memory.invalidate` / `memory.stats`, TTL и события `metrics`; `npm test` — 99
+инструменты `memory_search` / `memory_write` / `memory_verify` /
+`memory_invalidate` / `memory_stats`, TTL и события `metrics`; `npm test` — 99
 тестов, включая e2e «`index` → `search` находит три известных определения» на
 фикстурах `test/fixtures/phase0`. Дальше: инъекция контекста (010), метрики
 `token-meter` (011), бенчмарк MVP (015). Подробная внутренняя спецификация не

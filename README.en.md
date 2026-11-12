@@ -62,7 +62,7 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # then restart DSH Web
 #    --namespace names the memory; without it the workspace directory name is used.
 dsh-memory index --workspace . --namespace dsh-memory --json
 
-# 2. Search the memory. Inside a DSH profile the memory.search tool does this;
+# 2. Search the memory. Inside a DSH profile the memory_search tool does this;
 #    in a package checkout the same call can be verified directly:
 node --input-type=module -e "
   import { openStore } from './lib/store.js'
@@ -72,7 +72,7 @@ node --input-type=module -e "
 "
 ```
 
-A `memory.search` request is `{ "query": "cascade L0 L1 L2 L3", "k": 3 }`; the
+A `memory_search` request is `{ "query": "cascade L0 L1 L2 L3", "k": 3 }`; the
 answer is a list of snippets `[{ id, title, snippet, source_path, source_ref,
 status, confidence, score }]` — the full document text never leaves the store.
 
@@ -101,7 +101,7 @@ status, confidence, score }]` — the full document text never leaves the store.
 | L2 | cheap submodel under `ANSWER \| NO_ANSWER`, allowed to say "I don't know" | limited `max_tokens` |
 | L3 | the main model from the session settings, only on `NO_ANSWER` | full price |
 
-**Cascade rule.** Before any model answer, search memory (`memory.search`, L1).
+**Cascade rule.** Before any model answer, search memory (`memory_search`, L1).
 On a miss, use the `triage` preset (L2: cheap `deepseek-v4-flash` model,
 `ANSWER | NO_ANSWER` contract; markers are recognized with trailing punctuation,
 so `NO_ANSWER.` is a refusal, not an answer). On `NO_ANSWER`, call the main
@@ -112,9 +112,9 @@ answer is distilled back into memory as a `draft` with a source (write-back);
 **Verified knowledge only.** Write-back is gated: a distilled answer is stored as
 `draft` with `confidence ≤ 0.6` (model write-back must pass an
 `cascade:*`/`model*`/`triage*` `author`) and becomes `verified` only through
-`memory.verify`, which requires a source and a confirmer: a review/test PASS
+`memory_verify`, which requires a source and a confirmer: a review/test PASS
 (`reviewer:…`/`verifier:…`/`tester:…`) or a human (`human`); a bare session id is
-rejected so a session cannot confirm its own record. `memory.write` cannot write
+rejected so a session cannot confirm its own record. `memory_write` cannot write
 `verified` directly. The only manual exception is `human` confirming a source-less
 entry with `requireSource: false` — an explicit human act, not a review/test PASS. Otherwise one hallucination enters the index and is
 then served to every future session *cheaper than it would have cost to verify*.
@@ -144,20 +144,20 @@ snippets (lexical engine and `verified` status only). Plain `unicode61` remains 
 
 | Tool | Purpose | Input → output |
 | --- | --- | --- |
-| `memory.search` | find relevant knowledge | `{ query, k?, kinds?, status?, namespace? }` → `[{ id, title, snippet, source_path, source_ref, status, confidence, score }]` |
-| `memory.write` | store distilled knowledge | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
-| `memory.invalidate` | mark dependent entries stale | `{ path?, ref? }` → `{ affected }` |
-| `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
-| `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
+| `memory_search` | find relevant knowledge | `{ query, k?, kinds?, status?, namespace? }` → `[{ id, title, snippet, source_path, source_ref, status, confidence, score }]` |
+| `memory_write` | store distilled knowledge | `{ text, title, kind, sources[], confidence?, status? }` → `{ id, deduped, status }` |
+| `memory_invalidate` | mark dependent entries stale | `{ path?, ref? }` → `{ affected }` |
+| `memory_verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
+| `memory_stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
 Tools are registered in `ctx.tools` once the `tools` service becomes available:
 `apply` waits for it via `ctx.inject(['tools'], …)` (it may appear after apply,
 as in the desktop profile). If `tools` never appears, the plugin loads as before
 and the `ctx.memory` API modules remain available.
-`memory.search` returns `verified` entries by default; `status: "all"` adds
+`memory_search` returns `verified` entries by default; `status: "all"` adds
 `draft` entries marked by status, and snippets are truncated to 300 characters —
 a pointer, never the document.
-`memory.write` dedupes by hash; a source-less record is only a `draft` with
+`memory_write` dedupes by hash; a source-less record is only a `draft` with
 `confidence < 0.5`.
 
 ## Context injection
@@ -239,7 +239,7 @@ dsh-memory:
     preset: triage                                 # presets/triage.json: cheap model, ANSWER | NO_ANSWER
     model: ""                                      # overrides the preset model (deepseek-v4-flash)
     max_tokens: 300
-    write_back: true                               # L2/L3 answer -> memory.write (draft with a source)
+    write_back: true                               # L2/L3 answer -> memory_write (draft with a source)
 ```
 
 The `triage` preset is a cascade descriptor (`presets/triage.json`: cheap model,
@@ -310,10 +310,10 @@ by an adapter via `memory.registerRoleProvider(name, fn)`, and the planner via
 fails/times out, or the turn is cancelled, the hook stays out of the way and the
 turn proceeds to L3 (or ends by cancellation). A dispatcher answer is added as a
 `dsh-memory-dispatcher` plugin message and recorded in `metrics` as L2. Role
-write-back (`memory.writeRole`) is `draft` only with `author: role:<name>` and
+write-back (`memory_writeRole`) is `draft` only with `author: role:<name>` and
 `confidence ≤ 0.6`, in the role namespace (or the shared one when
 `dispatcher.shared_namespace: true`); `verified` is only reachable through
-`memory.verify`. With the flag off the package behaviour is unchanged; design:
+`memory_verify`. With the flag off the package behaviour is unchanged; design:
 [docs/roles-design.md](docs/roles-design.md).
 
 ## Embeddings (optional)
@@ -332,8 +332,8 @@ code; all egress lives in the optional package, the key comes from env only, and
 [docs/embeddings-design.md](docs/embeddings-design.md), local RAG acceptance:
 [docs/benchmark-local-rag.md](docs/benchmark-local-rag.md).
 
-The main package's `memory.search` is **async** (it waits for embedding
-channels); `memory.searchSync` is the synchronous variant for CLI/benchmarks
+The main package's `memory_search` is **async** (it waits for embedding
+channels); `memory_searchSync` is the synchronous variant for CLI/benchmarks
 that skips async channels.
 
 ## Metrics
@@ -347,7 +347,7 @@ that skips async channels.
 | Invisible overhead | added latency to first token | ≤ 50 ms |
 | Injection stays small | injected block size | ≤ 600 tokens |
 
-`memory.stats` semantics: `injected_tokens` is the cost of memory injections
+`memory_stats` semantics: `injected_tokens` is the cost of memory injections
 (every turn appends another snapshot block to the history, so the cost
 accumulates); `tokens_saved_estimate` is savings only where a turn is served by
 L2 instead of L3, and stays 0 in the MVP until benchmark 015 calibrates it.
@@ -372,17 +372,17 @@ excluded from indexing: a PEM header at the start of a line
 `AKIA` + 16 uppercase characters. Bare marker mentions and a PEM header in the
 middle of a description (README, spec, task cards) are not treated as secrets —
 otherwise the project's own documentation would drop out of memory; a key in
-inline code, a list, or a fenced block is still filtered out. `memory.search`
+inline code, a list, or a fenced block is still filtered out. `memory_search`
 returns snippets only, and on error the plugin stays silent, letting the turn continue.
 
 ## Roadmap
 
 | Phase | Scope | Acceptance |
 | --- | --- | --- |
-| 0 | plugin skeleton, `memory.search` / `memory.write`, SQLite FTS5, CLI `index` | index builds over docs, search finds the 3 known definitions |
-| 1 | top-k injection, `memory.stats`, dedupe, stale by hash | hit-rate ≥ 20% on 20 queries, injection ≤ 600 tokens |
+| 0 | plugin skeleton, `memory_search` / `memory_write`, SQLite FTS5, CLI `index` | index builds over docs, search finds the 3 known definitions |
+| 1 | top-k injection, `memory_stats`, dedupe, stale by hash | hit-rate ≥ 20% on 20 queries, injection ≤ 600 tokens |
 | 2 | draft/verified verification, triage presets, `AGENTS.md` rules | no verified record without a source, savings measured |
-| 3 | index `.kanban` and decisions, TTL, `memory.invalidate` | stale records are never returned |
+| 3 | index `.kanban` and decisions, TTL, `memory_invalidate` | stale records are never returned |
 | 4 | lexical search, optional embeddings package, hard L2→L3 router, dashboard | −25% tokens on repeated questions without a quality drop |
 | 5 | dispatcher and specialised submodels | proposal only, acceptance criteria to be defined |
 
@@ -390,8 +390,8 @@ returns snippets only, and on error the plugin stays silent, letting the turn co
 
 Phase 0 is complete: the plugin skeleton (package, bundle row, `apply`), the
 SQLite store (schema, migrations, namespace, FTS5), the document indexer with
-the `index` CLI, the `memory.search` / `memory.write` / `memory.verify` /
-`memory.invalidate` / `memory.stats` tools, TTL and `metrics` events; `npm test`
+the `index` CLI, the `memory_search` / `memory_write` / `memory_verify` /
+`memory_invalidate` / `memory_stats` tools, TTL and `metrics` events; `npm test`
 runs 99 tests, including the phase 0 e2e "`index` → `search` finds three known
 definitions" over the `test/fixtures/phase0` fixtures. Next: context injection
 (010), `token-meter` metrics (011), the MVP benchmark (015). The detailed

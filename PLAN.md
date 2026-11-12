@@ -44,10 +44,10 @@
 | 001 | Скелет плагина | пакет с `dsh.bundle`, точка входа, монтирование в профиль |
 | 002 | Хранилище | схема SQLite, миграции, namespace по воркспейсу |
 | 003 | Индексатор | обход воркспейса, фильтры, `sha256`, чанкование, CLI `index` |
-| 004 | `memory.search` | FTS5, фильтры `kinds`/`status`, сниппеты ≤ 300 символов |
-| 005 | `memory.write` | дедупликация по `hash`, `draft`, провенанс, `confidence` |
-| 006 | `memory.verify`, `memory.invalidate` | статусы, `stale` по хэшу, TTL |
-| 007 | `memory.stats`, события | агрегаты и `metrics` без потери данных |
+| 004 | `memory_search` | FTS5, фильтры `kinds`/`status`, сниппеты ≤ 300 символов |
+| 005 | `memory_write` | дедупликация по `hash`, `draft`, провенанс, `confidence` |
+| 006 | `memory_verify`, `memory_invalidate` | статусы, `stale` по хэшу, TTL |
+| 007 | `memory_stats`, события | агрегаты и `metrics` без потери данных |
 | 008 | Конфигурация | схема конфига, `DSH_MEMORY_*`, namespace `auto` |
 | 009 | Тесты и приёмка фазы 0 | `index` строит индекс, `search` находит 3 определения |
 

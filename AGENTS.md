@@ -78,13 +78,13 @@ task/<id> main`), чтобы ветка начиналась от актуаль
 9. **`git push` не делает ни один агент** — это шаг человека.
 10. **Расход пишется в карточку**: `--role <роль> --tokens auto`.
 11. **Память — сначала L1.** Перед ответом моделью ищи в памяти
-    (`memory.search`). Промах — пресет `triage` (L2, дешёвая модель,
+    (`memory_search`). Промах — пресет `triage` (L2, дешёвая модель,
     `ANSWER | NO_ANSWER`); `NO_ANSWER` — основная модель (L3). После ответа
     L2/L3 дистиллят пишется в память как `draft` с источником и
-    `confidence ≤ 0.6` (write-back); `verified` ставится только `memory.verify`
+    `confidence ≤ 0.6` (write-back); `verified` ставится только `memory_verify`
     с источником и `verified_by` — PASS ревью/теста (`reviewer`/`verifier`/
     `tester`) или подтверждение человека; голый id сессии не принимается;
-    `memory.write` не пишет `verified`. Ручное исключение — только `human`
+    `memory_write` не пишет `verified`. Ручное исключение — только `human`
     с `requireSource: false`.
 
 ## Лимиты и очередь
