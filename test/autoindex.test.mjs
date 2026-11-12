@@ -173,3 +173,42 @@ test('ошибка после частичной индексации: повт�
   assert.equal(entries, 2)
   assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/ws', config: { index: { autoindex: true } }, env: {} }), false)
 })
+
+test('успешная индексация 0 файлов не повторяется на следующем ходе', () => {
+  let calls = 0
+  const { scheduler, queue } = schedulerWithQueue(() => {
+    calls += 1
+    return { files: 0, indexed: 0, unchanged: 0 }
+  })
+  const store = fakeStore(0)
+  assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/empty', config: { index: { autoindex: true } }, env: {} }), true)
+  queue[0]()
+  assert.equal(calls, 1)
+  assert.equal(scheduler.maybeSchedule({ store, workspace: '/tmp/empty', config: { index: { autoindex: true } }, env: {} }), false)
+})
+
+test('автоиндексация в worker не держит event loop > 200 мс', async (t) => {
+  const workspace = tempDir(t)
+  const dbDir = tempDir(t)
+  for (let index = 0; index < 300; index += 1) {
+    writeFileSync(join(workspace, `doc-${index}.md`), `# Документ ${index}\n\n${'память проекта '.repeat(40)}`)
+  }
+  const store = openStore({ dbPath: dbDir, namespace: 'demo' })
+  t.after(() => store.close())
+  const scheduler = createAutoindexScheduler({ logger: () => {} })
+  assert.equal(scheduler.maybeSchedule({
+    store,
+    workspace,
+    config: { index: { autoindex: true, include: ['**/*.md'], exclude: [], max_chunk_tokens: 800 } },
+    env: {},
+  }), true)
+  const startedAt = performance.now()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const delay = performance.now() - startedAt
+  assert.ok(delay < 200, `event loop задержан на ${delay.toFixed(0)} мс`)
+  const deadline = Date.now() + 15_000
+  while (store.countEntries() === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  assert.ok(store.countEntries() > 0, 'worker должен проиндексировать документы')
+})

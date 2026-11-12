@@ -46,9 +46,10 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # then restart DSH Web
 - `dsh-memory index` indexes the markdown documentation manually (incrementally,
   filtering secrets out);
 - auto-indexing: when the index is empty, the first turn schedules markdown
-  indexing in the background (does not block the turn); later runs are
-  incremental by sha256; opt out with `DSH_MEMORY_AUTOINDEX=off` or
-  `index.autoindex: false`;
+  indexing in a worker thread (the turn's event loop is not blocked); progress is
+  logged; later runs are incremental by sha256; opt out with
+  `DSH_MEMORY_AUTOINDEX=off` or `index.autoindex: false`; this is first-successful-turn
+  auto-indexing, later document changes use manual `dsh-memory index`/a follow-up task;
 - planned later (outside phase 0): `dsh-memory doctor` (DB path, namespace,
   files/chunks, skipped secrets) and `dsh-memory index --dry-run`;
 - vectors are not part of the main package: the separate
