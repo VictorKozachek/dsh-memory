@@ -37,9 +37,11 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # затем перезап
 
 - настраивать ничего не нужно: память локальная (SQLite FTS5), сеть не используется, ключи не требуются;
 - `dsh-memory index` — индексация markdown-документации вручную (инкрементально, с отсечением секретов);
-- планируется позже (вне фазы 0): `dsh-memory doctor` (путь БД, namespace, файлы/чанки,
-  отсеянные секреты), `dsh-memory index --dry-run` и фоновая автоиндексация при первом
-  ходе с отключением через `DSH_MEMORY_AUTOINDEX=off`;
+- автоиндексация: если индекс пуст, первый ход планирует индексацию markdown в
+  фоне (не блокирует ход), повторные — инкрементальны по sha256; отключается
+  `DSH_MEMORY_AUTOINDEX=off` или `index.autoindex: false`;
+- планируется позже (вне фазы 0): `dsh-memory doctor` (путь БД, namespace,
+  файлы/чанки, отсеянные секреты) и `dsh-memory index --dry-run`;
 - векторы в основной пакет не входят: отдельный
   `@vkozachek/dsh-memory-embeddings` включает локальный RAG по умолчанию
   (multilingual-e5-small, веса скачиваются в `~/.dsh/memory/models` при первом
@@ -218,8 +220,9 @@ dsh-memory:
   search: { default_status: verified, snippet_chars: 300, synonyms: true }
   index:
     include: ["**/*.md"]
-    exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
+    exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "build/**", "tmp/**", ".cache/**", "worktrees/**", "bench/**", "test/**", "docs/benchmark-*.md"]
     max_chunk_tokens: 800
+    autoindex: true
   embeddings: { enabled: false, model: "" }   # legacy-поле основного пакета; локальный RAG — в dsh-memory-embeddings (enabled:true)
   verify: { require_source_for_verified: true }
   router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }

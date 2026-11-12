@@ -45,9 +45,12 @@ dsh plugin --profile web add @vkozachek/dsh-memory   # then restart DSH Web
 - nothing to configure: memory is local (SQLite FTS5), no network, no API keys;
 - `dsh-memory index` indexes the markdown documentation manually (incrementally,
   filtering secrets out);
+- auto-indexing: when the index is empty, the first turn schedules markdown
+  indexing in the background (does not block the turn); later runs are
+  incremental by sha256; opt out with `DSH_MEMORY_AUTOINDEX=off` or
+  `index.autoindex: false`;
 - planned later (outside phase 0): `dsh-memory doctor` (DB path, namespace,
-  files/chunks, skipped secrets), `dsh-memory index --dry-run`, and background
-  auto-indexing on the first turn, disabled by `DSH_MEMORY_AUTOINDEX=off`;
+  files/chunks, skipped secrets) and `dsh-memory index --dry-run`;
 - vectors are not part of the main package: the separate
   `@vkozachek/dsh-memory-embeddings` package enables local RAG by default
   (`Xenova/multilingual-e5-small`; first use downloads weights, then offline);
@@ -220,8 +223,9 @@ dsh-memory:
   search: { default_status: verified, snippet_chars: 300, synonyms: true }
   index:
     include: ["**/*.md"]
-    exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "tmp/**", ".cache/**"]
+    exclude: [".git/**", "node_modules/**", "target/**", "dist/**", "build/**", "tmp/**", ".cache/**", "worktrees/**", "bench/**", "test/**", "docs/benchmark-*.md"]
     max_chunk_tokens: 800
+    autoindex: true
   embeddings: { enabled: false, model: "" }   # legacy main-package field; local RAG lives in dsh-memory-embeddings (enabled:true)
   verify: { require_source_for_verified: true }
   router: { enabled: false, confidence_threshold: 0.6, timeout_ms: 5000 }
