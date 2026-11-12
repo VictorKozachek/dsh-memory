@@ -305,3 +305,48 @@ test('повторный apply на том же контексте не дубл
   plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
   assert.equal(registered.length, 5)
 })
+
+test('cleanup/reload на том же ctx снова регистрирует memory.*; поздний callback после dispose — нет', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-reload-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const active = new Set()
+  const cleanups = []
+  const ctx = {
+    tools: {
+      register(definition) {
+        active.add(definition.name)
+        return () => active.delete(definition.name)
+      },
+    },
+    on: () => {},
+    effect: (callback) => { cleanups.push(callback); return () => {} },
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(active.size, 5)
+  for (const cleanup of cleanups.splice(0)) {
+    const dispose = cleanup()
+    if (typeof dispose === 'function') dispose()
+  }
+  assert.equal(active.size, 0)
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(active.size, 5, 'после cleanup/reload инструменты должны вернуться')
+
+  // Поздний ctx.inject callback после выгрузки не должен регистрировать.
+  const lateCallbacks = []
+  const lateCtx = {
+    on: () => {},
+    effect: (callback) => { cleanups.push(callback); return () => {} },
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+    inject: (_services, callback) => { lateCallbacks.push(callback); return () => {} },
+  }
+  plugin.apply(lateCtx, { db_path: dir, namespace: 'demo' })
+  for (const cleanup of cleanups.splice(0)) {
+    const dispose = cleanup()
+    if (typeof dispose === 'function') dispose()
+  }
+  lateCallbacks[0]({ tools: { register: (definition) => { active.add(definition.name); return () => active.delete(definition.name) } } })
+  assert.equal(active.size, 0, 'callback после dispose не должен регистрировать')
+})
