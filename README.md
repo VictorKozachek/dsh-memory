@@ -145,8 +145,10 @@ write-back обязан передавать `author` вида `cascade:*`/`mode
 | `memory.verify` | подтвердить запись | `{ id, verified_by }` → `{ id, status: "verified" }` |
 | `memory.stats` | метрики памяти | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
-Инструменты регистрируются в `ctx.tools` при наличии сервиса `tools`; без него
-плагин грузится как раньше (API-модули `memory.*` доступны сервису `ctx.memory`).
+Инструменты регистрируются в `ctx.tools`, когда сервис `tools` становится
+доступен: `apply` ждёт его через `ctx.inject(['tools'], …)` (сервис может
+появиться позже apply, как в профиле desktop). Если `tools` не появился, плагин
+грузится как раньше — API-модули `memory.*` остаются доступны через `ctx.memory`.
 `memory.search` по умолчанию отдаёт только `verified`; `status: "all"` добавляет `draft`
 с пометкой статуса.
 `memory.write` без источника — только `draft` с confidence < 0.5; при совпадении хэша растёт confidence.

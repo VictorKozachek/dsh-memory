@@ -150,8 +150,10 @@ snippets (lexical engine and `verified` status only). Plain `unicode61` remains 
 | `memory.verify` | promote a draft to verified | `{ id, verified_by }` → `{ id, status: "verified" }` |
 | `memory.stats` | usage and savings | `{}` → `{ entries, by_status, hit_rate, injected_tokens, tokens_saved_estimate, dispatch }` |
 
-Tools are registered in `ctx.tools` when the `tools` service is present; without
-it the plugin loads as before (`ctx.memory` API modules stay available).
+Tools are registered in `ctx.tools` once the `tools` service becomes available:
+`apply` waits for it via `ctx.inject(['tools'], …)` (it may appear after apply,
+as in the desktop profile). If `tools` never appears, the plugin loads as before
+and the `ctx.memory` API modules remain available.
 `memory.search` returns `verified` entries by default; `status: "all"` adds
 `draft` entries marked by status, and snippets are truncated to 300 characters —
 a pointer, never the document.

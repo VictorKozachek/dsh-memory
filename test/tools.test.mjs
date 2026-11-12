@@ -238,3 +238,115 @@ function validateRawValue(schema, value, path) {
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) violations.push(`${path}: enum`)
   return violations
 }
+
+test('tools появляется после apply: ctx.inject дожидается сервиса и регистрирует один раз', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-late-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const registered = []
+  const callbacks = []
+  let memory
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    provide: (name, service) => { if (name === 'memory') memory = service },
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+    inject: (services, callback) => {
+      assert.deepEqual(services, ['tools'])
+      callbacks.push(callback)
+      return () => {}
+    },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  // apply без tools не падает и ничего не регистрирует.
+  assert.equal(registered.length, 0)
+  assert.ok(memory)
+
+  const tools = {
+    register(definition) {
+      registered.push(definition)
+      return () => {}
+    },
+  }
+  // Сервис tools появляется позже; callback получает контекст с tools.
+  callbacks[0]({ tools })
+  assert.equal(registered.length, 5)
+  assert.deepEqual(registered.map((definition) => definition.name).sort(), [
+    'memory.invalidate', 'memory.search', 'memory.stats', 'memory.verify', 'memory.write',
+  ])
+  // Повторный callback (пересоздание сервиса) не дублирует регистрацию.
+  callbacks[0]({ tools })
+  assert.equal(registered.length, 5)
+})
+
+test('без tools и без inject apply не падает', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-none-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  assert.doesNotThrow(() => plugin.apply(ctx, { db_path: dir, namespace: 'demo' }))
+})
+
+test('повторный apply на том же контексте не дублирует memory.*', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-twice-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const registered = []
+  const ctx = {
+    tools: { register(definition) { registered.push(definition); return () => {} } },
+    on: () => {},
+    effect: () => {},
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(registered.length, 5)
+})
+
+test('cleanup/reload на том же ctx снова регистрирует memory.*; поздний callback после dispose — нет', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-reload-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const active = new Set()
+  const cleanups = []
+  const ctx = {
+    tools: {
+      register(definition) {
+        active.add(definition.name)
+        return () => active.delete(definition.name)
+      },
+    },
+    on: () => {},
+    effect: (callback) => { cleanups.push(callback); return () => {} },
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(active.size, 5)
+  for (const cleanup of cleanups.splice(0)) {
+    const dispose = cleanup()
+    if (typeof dispose === 'function') dispose()
+  }
+  assert.equal(active.size, 0)
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(active.size, 5, 'после cleanup/reload инструменты должны вернуться')
+
+  // Поздний ctx.inject callback после выгрузки не должен регистрировать.
+  const lateCallbacks = []
+  const lateCtx = {
+    on: () => {},
+    effect: (callback) => { cleanups.push(callback); return () => {} },
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+    inject: (_services, callback) => { lateCallbacks.push(callback); return () => {} },
+  }
+  plugin.apply(lateCtx, { db_path: dir, namespace: 'demo' })
+  for (const cleanup of cleanups.splice(0)) {
+    const dispose = cleanup()
+    if (typeof dispose === 'function') dispose()
+  }
+  lateCallbacks[0]({ tools: { register: (definition) => { active.add(definition.name); return () => active.delete(definition.name) } } })
+  assert.equal(active.size, 0, 'callback после dispose не должен регистрировать')
+})
