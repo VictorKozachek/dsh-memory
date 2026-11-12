@@ -238,3 +238,70 @@ function validateRawValue(schema, value, path) {
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) violations.push(`${path}: enum`)
   return violations
 }
+
+test('tools появляется после apply: ctx.inject дожидается сервиса и регистрирует один раз', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-late-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const registered = []
+  const callbacks = []
+  let memory
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    provide: (name, service) => { if (name === 'memory') memory = service },
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+    inject: (services, callback) => {
+      assert.deepEqual(services, ['tools'])
+      callbacks.push(callback)
+      return () => {}
+    },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  // apply без tools не падает и ничего не регистрирует.
+  assert.equal(registered.length, 0)
+  assert.ok(memory)
+
+  const tools = {
+    register(definition) {
+      registered.push(definition)
+      return () => {}
+    },
+  }
+  // Сервис tools появляется позже; callback получает контекст с tools.
+  callbacks[0]({ tools })
+  assert.equal(registered.length, 5)
+  assert.deepEqual(registered.map((definition) => definition.name).sort(), [
+    'memory.invalidate', 'memory.search', 'memory.stats', 'memory.verify', 'memory.write',
+  ])
+  // Повторный callback (пересоздание сервиса) не дублирует регистрацию.
+  callbacks[0]({ tools })
+  assert.equal(registered.length, 5)
+})
+
+test('без tools и без inject apply не падает', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-none-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const ctx = {
+    on: () => {},
+    effect: () => {},
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  assert.doesNotThrow(() => plugin.apply(ctx, { db_path: dir, namespace: 'demo' }))
+})
+
+test('повторный apply на том же контексте не дублирует memory.*', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-memory-tools-twice-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const registered = []
+  const ctx = {
+    tools: { register(definition) { registered.push(definition); return () => {} } },
+    on: () => {},
+    effect: () => {},
+    provide: () => {},
+    logger: { debug: () => {}, info: () => {}, warn: () => {} },
+  }
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  plugin.apply(ctx, { db_path: dir, namespace: 'demo' })
+  assert.equal(registered.length, 5)
+})
