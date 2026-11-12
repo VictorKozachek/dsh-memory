@@ -16,5 +16,5 @@
 # дублировались: настройки переопределяются либо полями ряда, либо окружением.
 - insert:
     - id: dsh-memory
-      name: @vkozachek/dsh-memory
+      name: '@vkozachek/dsh-memory'
 

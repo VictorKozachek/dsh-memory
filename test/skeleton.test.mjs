@@ -114,5 +114,5 @@ test('cordis.patch.yml вставляет ряд, монтирующий пак�
   const patch = readFileSync(patchFile, 'utf8')
   assert.match(patch, /^- insert:/m)
   assert.match(patch, /^\s+- id: dsh-memory$/m)
-  assert.match(patch, /^\s+name: @vkozachek\/dsh-memory$/m)
+  assert.match(patch, /^\s+name: '@vkozachek\/dsh-memory'$/m)
 })

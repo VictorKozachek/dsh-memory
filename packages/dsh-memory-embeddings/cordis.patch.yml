@@ -6,7 +6,7 @@
 # `@vkozachek/dsh-memory-embeddings`; дефолты дублируются в lib/config.js.
 - insert:
     - id: dsh-memory-embeddings
-      name: @vkozachek/dsh-memory-embeddings
+      name: '@vkozachek/dsh-memory-embeddings'
       config:
         enabled: true
         provider: local-onnx         # local | local-onnx | ollama | openai-compatible
