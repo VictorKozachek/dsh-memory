@@ -60,8 +60,9 @@ test('дефолты повторяют блок dsh-memory из README', () => 
   assert.deepEqual(config.search, { default_status: 'verified', snippet_chars: 300, synonyms: true })
   assert.deepEqual(config.index, {
     include: ['**/*.md'],
-    exclude: ['.git/**', 'node_modules/**', 'target/**', 'dist/**', 'tmp/**', '.cache/**'],
+    exclude: ['.git/**', 'node_modules/**', 'target/**', 'dist/**', 'build/**', 'tmp/**', '.cache/**', 'worktrees/**', 'bench/**', 'test/**', 'docs/benchmark-*.md'],
     max_chunk_tokens: 800,
+    autoindex: true,
   })
   assert.deepEqual(config.embeddings, { enabled: false, model: '' })
   assert.deepEqual(config.verify, { require_source_for_verified: true })
@@ -99,7 +100,7 @@ test('конфиг ряда накладывается поверх дефолт
     db_path: '/tmp/memory',
     inject: { top_k: 5 },
     search: { snippet_chars: 120 },
-    index: { include: ['docs/**/*.md', 'README.md'] },
+    index: { include: ['docs/**/*.md', 'README.md'], autoindex: false },
     embeddings: { enabled: true, model: 'text-embedding-3-small' },
     verify: { require_source_for_verified: false },
     cascade: { enabled: true, model: 'cheap-model', max_tokens: 200 },
@@ -119,6 +120,7 @@ test('конфиг ряда накладывается поверх дефолт
   assert.deepEqual(config.index.include, ['docs/**/*.md', 'README.md'])
   assert.deepEqual(config.index.exclude, DEFAULT_CONFIG.index.exclude)
   assert.equal(config.index.max_chunk_tokens, 800)
+  assert.equal(config.index.autoindex, false)
   assert.deepEqual(config.embeddings, { enabled: true, model: 'text-embedding-3-small' })
   assert.equal(config.verify.require_source_for_verified, false)
   assert.deepEqual(config.cascade, {
@@ -156,7 +158,7 @@ test('каждое невалидное поле заменяется дефол
     db_path: '',
     inject: { enabled: 'yes', top_k: 0, token_budget: 1.5 },
     search: { default_status: 'stale', snippet_chars: -1, synonyms: 'yes' },
-    index: { include: 'README.md', exclude: [1], max_chunk_tokens: '800' },
+    index: { include: 'README.md', exclude: [1], max_chunk_tokens: '800', autoindex: 'yes' },
     embeddings: 'off',
     verify: { require_source_for_verified: 'no' },
     cascade: { enabled: 'yes', preset: 7, model: 42, max_tokens: 0, write_back: 'no' },
@@ -177,6 +179,7 @@ test('каждое невалидное поле заменяется дефол
     'index.include',
     'index.exclude',
     'index.max_chunk_tokens',
+    'index.autoindex',
     'embeddings',
     'verify.require_source_for_verified',
     'cascade.enabled',
