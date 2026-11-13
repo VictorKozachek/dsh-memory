@@ -82,7 +82,7 @@ function setup(t, options) {
 /** Mock AgentLoop: L2 при ответе диспетчера, иначе L3; отмена — стоп. */
 async function runAgentLoop(listener, payload, calls) {
   const decision = await listener.handler(payload, async () => ({ kind: 'enter', messages: [] }))
-  const dispatcherMessage = decision.messages.find((message) => message?.source?.plugin === 'dsh-memory-dispatcher')
+  const dispatcherMessage = decision.messages.find((message) => message?.source?.kind === 'plugin:dsh-memory-dispatcher')
   if (dispatcherMessage) {
     calls.push('L2')
     return { layer: 'L2', answer: dispatcherMessage.content[0].text }

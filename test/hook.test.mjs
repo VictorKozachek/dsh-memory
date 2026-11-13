@@ -123,8 +123,8 @@ test('хук добавляет блок памяти в сообщения ша
   assert.equal(decision.messages.length, 1)
   const injected = decision.messages[0]
   assert.equal(injected.role, 'user')
-  assert.equal(injected.source.kind, 'plugin')
-  assert.equal(injected.source.plugin, 'dsh-memory')
+  assert.equal(injected.source.kind, 'plugin:dsh-memory')
+  assert.equal(injected.source.plugin, undefined)
   assert.equal(injected.source.form, 'snapshot')
   assert.match(injected.content[0].text, /^\[memory\] .+ — .+ \(docs\/memory\.md, verified\)/m)
 })
@@ -255,8 +255,9 @@ test('createPluginMessage: форма сообщения, заморозка и 
   const second = createPluginMessage('[memory] y')
 
   assert.equal(first.role, 'user')
-  assert.equal(first.source.kind, 'plugin')
-  assert.equal(first.source.plugin, 'dsh-memory')
+  assert.equal(first.source.kind, 'plugin:dsh-memory')
+  assert.equal(first.source.plugin, undefined)
+  assert.ok(!first.source.kind.startsWith('plugin:plugin:'), 'kind не должен быть вложенным')
   assert.deepEqual(first.source.sections, [{ name: 'dsh-memory', text: '[memory] x' }])
   assert.deepEqual(first.content, [{ type: 'text', text: '[memory] x' }])
   assert.ok(Object.isFrozen(first))
@@ -271,7 +272,7 @@ test('lastUserMessageFromSession берёт последнее human-сообщ�
     events: [
       { type: 'user/message', data: userMessage('первое') },
       { type: 'user/message', data: userMessage('второе') },
-      { type: 'user/message', data: userMessage('[memory] вставка', { kind: 'plugin', plugin: 'dsh-memory' }) },
+      { type: 'user/message', data: userMessage('[memory] вставка', { kind: 'plugin:dsh-memory' }) },
     ],
   })
   assert.equal(lastUserMessageFromSession(agent), 'второе')
